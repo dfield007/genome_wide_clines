@@ -26,7 +26,7 @@ This repository documents the analyses scripts associated with the manuscript "G
 
 ## Scripts
 
-Analyses and figures for main text and supplementary materials are conducted in a series of R markdown scripts contained in `genome_wide_clines/Rmarkdown`:
+Analyses and figures for main text and supplementary materials are conducted in a series of R markdown scripts contained in main folder of _https://github.com/dfield007/genome_wide_clines_
 
 - FastClines_Amajus_main.Rmd
 - FastClines_Amajus_RNAseq.Rmd
