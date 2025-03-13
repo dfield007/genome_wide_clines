@@ -40,7 +40,7 @@ Most of the main analyses and generation of figures are conducted in the script 
 
 Input datasets:
 
-- Antirrhinum Reference genome (online link)
+- Antirrhinum Reference genome: reference genome V3.0 is available at the NGDC Genome Warehouse under accession number GWHBJVT00000000
 - Antirrhinum Annotated genome: GWHBJVT00000000.gff (GFF annotations have been uploaded to NCBI WGS under accession number SUB15081867)
 - Whole Genome PoolSeq dataset: (SRA under accession number SUB15081578)
 - Whole Genome PoolSeq dataset population meta details: `Amajus_PoolSeq_popDetails.txt` (online link)
