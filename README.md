@@ -15,15 +15,6 @@ This repository documents the analyses scripts associated with the manuscript "G
   - [(vii) MLE Cline fitting](#vii-mle-cline-fitting)
   - [(viii) FastClines simulations](#viii-fastclines-simulations)
 
-## Input Data sets
-
-- Antirrhinum Reference genome (online link)
-- Antirrhinum Annotated genome (online link) GWHBJVT00000000.gff
-- Whole Genome PoolSeq dataset (online link)
-- RNAseq dataset (online link)
-- Hybrid zone plant genotypes and spatial dataset (Dryad link)
-- Hybrid zone plant colour phenotype dataset (Dryad link)
-
 ## Scripts
 
 Analyses and figures for main text and supplementary materials are conducted in a series of R markdown scripts contained in main folder of _https://github.com/dfield007/genome_wide_clines_
@@ -49,13 +40,14 @@ Most of the main analyses and generation of figures are conducted in the script 
 
 Input datasets:
 
-- Antirrhinum Reference genome 
-- Antirrhinum Annotated genome GWHBJVT00000000.gff
-- Whole Genome PoolSeq dataset
-- RNAseq dataset
-- Hybrid zone plant genotypes and spatial dataset
-- Hybrid zone plant colour phenotype dataset
-- KASP loci details: shortSummarySNPsAdj.csv
+- Antirrhinum Reference genome (online link)
+- Antirrhinum Annotated genome: GWHBJVT00000000.gff (GFF annotations have been uploaded to NCBI WGS under accession number SUB15081867)
+- Whole Genome PoolSeq dataset: (SRA under accession number SUB15081578)
+- Whole Genome PoolSeq dataset population meta details: `Amajus_PoolSeq_popDetails.txt` (online link)
+- RNAseq dataset: (SRA under accession number SUB15081578)
+- RNAseq candidate genes for Chromosome 5: `Amajus_candidate_genes_Chr5_RNAseq_Rimport.csv` (Dryad link)
+- Hybrid zone plant genotypes and spatial dataset: `` (Dryad link)
+- Hybrid zone plant colour phenotype dataset: `Amajus_FlowerPhenoMeasures.csv` (Dryad link)
 
 Functions: see `Source-my-functions` code chunk in `FastClines_Amajus_main.Rmd` to call all functions from `genome_wide_clines/myRfunctions`
 
