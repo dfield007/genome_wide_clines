@@ -24,9 +24,9 @@ This repository documents the analyses scripts associated with the manuscript "G
 - Hybrid zone plant genotypes and spatial dataset (Dryad link)
 - Hybrid zone plant colour phenotype dataset (Dryad link)
 
-## Workflow
+## Scripts
 
-Analyses and figures for main text and supplementary materials are conducted in a series of R markdown scripts:
+Analyses and figures for main text and supplementary materials are conducted in a series of R markdown scripts contained in `genome_wide_clines/Rmarkdown`:
 
 - FastClines_Amajus_main.Rmd
 - FastClines_Amajus_RNAseq.Rmd
@@ -34,14 +34,16 @@ Analyses and figures for main text and supplementary materials are conducted in 
 - FastClines_Amajus_MLEclines.Rmd
 - FastClines_Amajus_simulations.Rmd
 
-and also a number of Python scripts called within the markdowns:
+and also a number of Python scripts called within the markdowns 
 
 - SlidingWindows.py
 - FastClines.py
 
+further custom script functions called from R markdowns contained in `genome_wide_clines/myRfunctions`.
+
 Most of the main analyses and generation of figures are conducted in the script `FastClines_Amajus_main.Rmd`
 
-The workflow pipeline summary
+## Workflow pipeline summary
 
 ### (i) Data, functions, parameters
 
@@ -55,18 +57,18 @@ Input datasets:
 - Hybrid zone plant colour phenotype dataset
 - KASP loci details: shortSummarySNPsAdj.csv
 
-Functions: see `Source-my-functions` code chunk
+Functions: see `Source-my-functions` code chunk in `FastClines_Amajus_main.Rmd` to call all functions from `genome_wide_clines/myRfunctions`
 
 ### (ii) Genome scan sliding window
 
 - Genome scan sliding windows (Fst, Dxy, pi) performed in `FastClines_Amajus_main.Rmd` 
 - splits original sync files into separate chromosome chunks using BASH scripts
-- Calls python script `SlidingWindows_v1.4.py`available here:  
+- Calls python script `SlidingWindows_v1.4.py` available here: _https://github.com/dfield007/slidingWindows_
 
 ### (iii) FastClines geographic
 
 - Geographic cline analyses (cline centre and width) performed in `FastClines_Amajus_main.Rmd` 
-- Calls python script `FastClines.py`available here:
+- Calls python script `FastClines.py`available here: _https://github.com/dfield007/fastClines_
 
 ### (iv) post processing sliding window and FastClines outputs
 
@@ -92,7 +94,7 @@ Functions: see `Source-my-functions` code chunk
 
 - main analyses run by `FastClines_Amajus_GenoPheno.Rmd`
 - Fig 8d. ROS/RUB interaction
-- Fig S15- Fig S17, Table S5
+- Fig S15 - Fig S17, Table S5
 
 ### (vii) MLE Cline fitting
 
