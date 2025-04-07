@@ -1,0 +1,3241 @@
+---
+title: "FastClines_Amajus_GenoPheno"
+author: "David Field"
+date: "2025-03-13"
+output: html_document
+---
+
+These scripts run the genotype-phenotype analyses for the RUBIA gene associated with the manuscript "Genome-wide cline analysis identifies new locus contributing to a barrier to gene flow across an Antirrhinum hybrid zone" by David L Field, Sean Stankowski, Taylor Reiter, Jitka Polechova, Desmond Bradley, Daniel Richardson, Arka Pal, Daria Shipilina, Louis Boell, Melinda Pickup, Yongbiao Xue, Enrico Coen, Nicholas Barton. https://www.biorxiv.org/content/10.1101/2025.02.17.638607v1.full
+
+Also generates:
+Fig 8d. ROS/RUB interaction
+Fig S15 - Fig S17, Table S5
+
+# Genotype - Phenotype for RUBIA
+
+Previous studies on **Antirrhinum majus** have identified several major effect genes directly responsible for phenotypic variation in flower colour differences between these phenotypes (ROSEA; Schwinn et al , Am4CTG; Ono et al 2008, SULF; Bradley et al., 2017 ELUTA; Tavares et al 2018). To confirm that the SNPs we selected within each of these known major effect genes were associated with phenotypic variation at the Planoles hybrid zone, we used the KASP SNP genotypes to retest the association between each SNP and components of flower colour variation. Although the aim here is not to conduct Genome Wide Association Scans (GWAS) to identify new causal loci, we also test for associations at other SNP loci showing steep geographic clines in allele frequencies.  
+
+### METHODS  
+
+*Flower colour phenotypes*  
+  
+We used a random selection of individuals from the Planoles hybrid zone pedigree which had good quality photographs of the flowers. Following Whibley et al., (2006), individuals were first categorized into six phenotype/genotype classes on the basis of the intensity and patterning of anthocyanin and aurone pigmentation across the flower. This classification system is based on the inferred underlying ROS/EL and SULF genotypes . We then stratified the random samples from the six major colour phenotypes (Magenta, Yellow, Pink, Weak Orange, Full Orange and White), to ensure similar numbers of the main phenotype classes were available for genotype-phenotype associations. All photographs were taken on a standard background with the same light source. Individuals randomly selected were first checked for replicate multilocus genotypes. 
+  
+  Flower color measurements were taken in ImageJ (http://imagej.nih.gov/ij/). Images were white balanced using the macro `Chart_White_Balance` (http://imagejdocu.tudor.lu/doku.php?id=plugin:color:chart_white_balance:start) which operated consistently across flowers with the color chart contained in the flower photos. To properly white balance the photos, a line was drawn from the whitest part of the white swath from the upper color chart to the darkest part of the dark swath of the upper color chart. The macro then operated and white-balanced the photo. Measurements were taken from each of six flower measurement location sites. These measurements were taken using a standard circle with an area of 5480 pixels. The circle was placed in six standard locations (Figure Sx) using the plugin “RGB Measure” to obtain individual mean and standard deviation for the Red, Green, and Blue channels. 
+  
+  Hue was calculated using these three colour channels. We first convert all RGB measures to 0-1 scale, then calculate Hue depending on the maximum channel as (i) Red Max: $Hue =[(G-B)/(max-min)]*60$, (ii) Green Max: $Hue= [2+(B-R)/(max-min)]*60$, (iii) Blue Max: $Hue= [4+[R-G]/(max-min)]*60$. 
+  
+  As a measure of colourfullness of each region in proportion to its brightness, we calculated Saturation (Sat) as $Sat = [(max-min)/255]/[1-(2L-1)]$, where $L= [0.5(max-min)/255]$ and $max$ and $min$ refer to the maximum and minimum value amongst Red, Green and Blue channels (rescaled between 0 and 1).
+  
+  We also calculated the standard deviation of the Grayscale (sd_GS), using the average of standard deviation values of Red, Green and Blue channels simply as $GS_sd = (sd_R+sd_G+sd_B)/3$.
+  
+  Lastly, we calculated intensity density (Int) averaged over the three channels as $Int = (R+G+B)/3$.
+  
+  We assessed these 4 traits representing colour and pattern (Hue, GS_sd, Int, Sat) in each of the six floral regions individually and in a multivariate framework using Principal Component Analysis (PCA) as implemented in R. Individual traits were transformed to ensure normality using normal quantile transformation. For the latter, we built two PCA models (i) with intensity (Int) included, (ii) without intensity. Excluding intensity measure were implemented to control for environmental variation, given that fine scale environmental conditions (e.g. shade) are known to influence the intensity of anthocyanin (magenta) expression in both flowers and leaves in **Antirrhinum**.
+  
+*Flower colour phenotypes*
+    
+In addition to RGB colour space, we convert these values to HSV. 
+  
+- Hue remains as calculated above
+- Saturation (Sat) converted to HSV Saturation S2.
+
+```{r Define-folder-locations-input-output, include=F, echo=F}
+  folderLoc <- "/Users/MQ10006146/Library/CloudStorage/OneDrive-MacquarieUniversity/Projects/Snapdragons_shared/Data_Analyses/Pedigree_DF/"
+
+```
+```{r Load-packages, include=F,echo=F}
+
+library("dplyr")
+library("grid")
+library("cowplot")
+library("Rmpfr")
+library("nplr")
+library("optimx")
+library("maxLik")
+library("data.table")
+library("scatterplot3d")
+#library("MHadaptive")
+library("MCMCpack")
+library("mcmc")
+library("Hmisc")
+library("ggplot2")
+library("mapplots")
+require(data.table)
+library("RgoogleMaps")
+library("psych")
+library("calibrate")
+library(RColorBrewer)
+library("plotrix")
+library("RANN")
+library("stringdist")
+library("pdist")
+library("rmarkdown")
+library(compiler)
+library("plot3D")
+library("png")
+library("glmm")
+library("gplots")
+library("vcd")
+library("LDcorSV")
+library(viridis)
+library(corpcor)
+library(plotly)
+library(terra)
+library("raster")
+#library("rasterVis")
+library("rgdal")
+library(sp)
+library(maptools)
+library(rgeos)
+library(ggmap)
+library(mapproj)
+library(maps)
+library(mapdata)
+library("lubridate")
+#library(R2G2)
+library(reticulate)
+library(kableExtra)
+#library("LDheatmap")
+#library(sequoia)
+library(boot) # Bootstrap functions
+library(car) # Companion to applied regression
+library(dplyr) # Easy manipulation of dataset
+library(ggplot2) # Advance graphic functions
+library(nlme) # Linear mixed effect models
+library(pastecs) # Some basic statistics functions
+#library(plotly) # 3D plots
+library(reshape2) # Re - structure the dataset
+library(kinship2) # pedigree plots
+#library(optiSel) # pedigree info
+library(nadiv)
+library(pedigree)
+#library(asremlPlus)
+library(pastecs)
+library(igraph)
+library(tnet)
+#library(pedantics)
+library(ggplot2)
+library(MCMCglmm)
+library(scales)
+library(dplyr)
+library(tidyr)
+library(gridBase)
+library(gridExtra)
+library(grid)
+library(lattice)
+library(tinytex)
+
+library(lattice)
+library(DT)
+library(grid)
+library(png)
+library(jpeg)
+library(reticulate)
+library(knitr)
+library(imager)
+library(leaflet)
+library(tidyverse)
+library(htmlwidgets)
+library(tidygate)
+library("remotes")
+library("devtools")
+library(cowplot)
+
+library(magick)
+library(rdrop2)
+library(kableExtra)
+library(broman)
+library(broom)
+
+library(colorspace)  # For HSV to HEX conversion
+library(patchwork)
+library(kableExtra)
+library(gt)
+
+
+```
+```{r Source-my-functions, include=F,echo=F}
+  # load all of my functions
+  sourceDir <- function(path, trace = TRUE, ...) {
+    # path <- folder_myFunctions
+    for (nm in list.files(path, pattern = "[.][RrSsQq]$")) {
+      if(trace) cat(nm,":")
+      source(file.path(path, nm), ...)
+      if(trace) cat("\n")
+    }
+  }
+"/Users/MQ10006146/Library/CloudStorage/OneDrive-MacquarieUniversity/Projects/Snapdragons_shared/Data_Analyses
+  sourceDir(as.vector(folderStructure[folderStructure[,"FolderName"]=="folder_myFunctions","Location"]))
+  # file.sources = list.files("/Users/dfield/Documents/DavidWorkLaptop/PostdocIST/Projects/setupData_SNP_ecol/R/myFunctions", pattern="*.R$", full.names=TRUE,ignore.case=TRUE)
+  # sapply(file.sources,source,.GlobalEnv)
+```
+```{r import Taylors phenotype dataset}
+# Planoles
+flower <- read.csv("/Users/MQ10006146/Library/CloudStorage/OneDrive-MacquarieUniversity/Projects/Snapdragons_shared/Data_Analyses/poolSeq/version3.5/flowerPhenotypes/Amajus_FlowerPhenoMeasures.csv")
+
+
+```
+```{r import genotype data nucleotide coding as GenoEcol_nuc}
+GenoEcol_nuc <- read.csv(
+    "/Users/MQ10006146/Library/CloudStorage/OneDrive-MacquarieUniversity/Projects/Snapdragons_shared/Data_Analyses/Pedigree_DF/PostProcessedData/Amajus_KASP_publishV1.csv")
+
+```
+```{r import other base data}
+SNPlociListUpdated <- read.csv("/Users/MQ10006146/Library/CloudStorage/OneDrive-MacquarieUniversity/Projects/Snapdragons_shared/Data_Analyses/poolSeq/version3.5/KASP/Amajus_shortSummarySNPsAdj.csv",header=TRUE,fill=FALSE,na.strings = "?",stringsAsFactors = F)
+
+
+# # colnames(SNPlociListUpdated)
+# #SNPlociListUpdated <- read.csv(paste0(folderLoc,"/RawDataFiles/genetic/shortSummarySNPsAdj.csv"),header=TRUE,fill=FALSE,na.strings = "?",stringsAsFactors = F)
+# 
+# Antspec_compl <- readMyFile(folderStructure,"folder_processing_phase1QualScore","Antspec_compl.csv") 
+# summaryTable_antspec <- with(Antspec_compl[Antspec_compl[,"ThisYearLabel"]==1,], table(year))
+# # duplicate data
+# matchingMultiLoc <- readMyFile(folderStructure,"folder_processing_duplicates","matching_MultiLoc.csv")
+# locusErrors <- readMyFile(folderStructure,"folder_processing_duplicates","locusErrors.csv")
+```
+
+
+```{r calculate numbers not genotyped missing propMissing totalGenotyped for GenoEcol_nuc,echo=F}
+#colnames(GenoEcol)
+sumTable <- as.data.frame(table(GenoEcol_nuc[,"Population"]))
+
+colnames(sumTable) <- c("Population","Sample Size")
+phenoCatMain <- c("Y","FR","WO","FO","W","WR")
+GenoEcol_nuc[,"phenoCat_final"] <- as.vector(GenoEcol_nuc[,"phenoCat_final"])
+
+summaryTable <- with(GenoEcol_nuc[GenoEcol_nuc[,"phenoCat_final"]%in%phenoCatMain,], table(Population, phenoCat_final))
+summaryTable <- summaryTable[,c(2,1,5,4,3,6)]
+#kable(summaryTable,caption = "Number of samples genotyped across all populations and their phenotypes") %>%
+#  kable_styling(bootstrap_options = "striped", full_width = F)
+
+# how many SNP loci?
+lociColumns <- colnames(GenoEcol_nuc)[which(colnames(GenoEcol_nuc)=="s1187_290152"):which(colnames(GenoEcol_nuc)=="s735_701957")]
+numLoci <- length(lociColumns)
+lociColumns <- which(colnames(GenoEcol_nuc)=="s1187_290152"):which(colnames(GenoEcol_nuc)=="s735_701957")
+getMissing <- function(thisRow) {return(sum(thisRow==-9 | thisRow=="Bad"))}
+getNGY <- function(thisRow) {return(sum(thisRow=="NGY"))}
+getTotalGenotyped <- function(thisRow) {return(as.numeric(sum(thisRow=="NGY"| thisRow=="Bad" | thisRow==-9)))}
+getTotalGenotypesAvailable <- function(thisRow) {return(sum(thisRow>=0))}
+
+# turn -8 to -9
+GenoEcol_nuc_cut <- GenoEcol_nuc[,lociColumns]
+GenoEcol_nuc_cut[apply(GenoEcol_nuc_cut,2,function (x) x==-8)] <- -9
+GenoEcol_nuc[,lociColumns] <- GenoEcol_nuc_cut
+
+GenoEcol_nuc_new <- cbind(GenoEcol_nuc[,1:(lociColumns[1]-1)],GenoEcol_nuc_cut,GenoEcol_nuc[,c(which(colnames(GenoEcol_nuc)=="DataSet"):which(colnames(GenoEcol_nuc)=="PhenoComment"))])
+missing <- apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getMissing)
+NGY <- apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getNGY)
+totals <- numLoci-(apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getTotalGenotyped))
+totals_available <- apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getTotalGenotypesAvailable)
+propMissing <- as.numeric(missing)/as.numeric(totals_available)
+GenoEcol_nuc_new <- cbind(GenoEcol_nuc_new,missing,NGY,totals,propMissing)
+colnames(GenoEcol_nuc_new)
+lociColumns <- which(colnames(GenoEcol_nuc_new)=="s1187_290152"):which(colnames(GenoEcol_nuc_new)=="s735_701957")
+
+
+```
+```{r filtering GenoEcol_nuc to those with GPS and within Planoles valley}
+
+# NEW 2023 leaving all genotype data (dont extract just genotype)
+GenoEcol_nuc_new <- GenoEcol_nuc
+# Remove an individual with missing location
+GenoEcol_nuc_new <- GenoEcol_nuc_new %>% filter(Easting!=-9)
+
+# Sorting individuals East-West
+GenoEcol_nuc_new[,"Easting"] <- as.numeric(as.vector(GenoEcol_nuc_new[,"Easting"]))
+GenoEcol_nuc_new <- arrange(GenoEcol_nuc_new, Easting)
+
+# plot the whole region first
+#par(mfrow=c(1,1))
+#plotHZpedigree(GenoEcol_nuc_new,408000,439000,4684000,4692000,gridAdd=F,adjustMin=F,TitleStart="Planoles region all years")
+
+# Pick out Planoles using Easting and Northing
+GenoEcol_nuc_new <- GenoEcol_nuc_new %>% 
+  filter(Easting>410000 & Easting<435000 & Northing>4684000 & Northing<4692000)
+
+# Yellow side should be dominated by 0 or 1s (more hets on yellow flank)
+# head(GenoEcol_Planoles[,"ros_assembly_543443"],40)
+# Magenta side should be dominated by 2's
+# tail(GenoEcol_Planoles[,"ros_assembly_543443"],40)
+
+```
+```{r filtering GenoEcol_nuc propMissingData}
+#
+#- Flavia: s316_93292, s316_257789 (these are the SNPs either side gene on LG 2 - 43.175cM)
+#- Sulf: s91_39699, s91_78256 (genotyped the most), s91_78805 (s91_39699 left and s91_78256 right of Sulf LG 4 - 9.3cM)
+#- ROS1: ros_assembly_541834 (drop),ros_assembly_542000 (drop), ros_assembly_543443 (best marker), ros_assembly_544601 (just outside)
+#- ROS2: ros_assembly_567004
+#- ROS3: ros_assembly_575837,ros_assembly_576271
+#- Eluta: ros_assembly_715001 (most genotypes), ros_assembly_715015
+# loci for hybrid index, note only keep one marker in close proximity because strong LD means they are not independent
+theseDiagStrict <- c("s1187_290152","s829_8371","s316_93292","s316_257789","s91_39699","s91_78256","s91_78805","ros_assembly_543443","ros_assembly_715001")
+               
+# Full loci
+#colnames(GenoEcol)
+# useful objects in memory
+# lociNames; lociColumns; GenoEcol[,"missing"]; GenoEcol[,"totals"]; GenoEcol[,"propMissing"]
+# remove Hugos SNPs & the two dodgey SNPs Annabele flagged
+badSNPs1 <- c("ros_assembly_542000","ros_assembly_541834_ROS1","ros_assembly_717957","s164_366822","s277_468670","ros_assembly_246866","ros_assembly_717957")
+# second list of bad SNPs identified from latest reference genome
+badSNPs2 <- as.vector(SNPlociListUpdated[SNPlociListUpdated[,"GoodMarker"]==0,"LocusName"])
+# make an exception for the SULF marker for now
+badSNPs2 <- badSNPs2[-(which(badSNPs2=="s91_78256"))]
+# Good SNPs
+GoodSNPs <- SNPlociListUpdated[,"LocusName"][(SNPlociListUpdated[,"LocusName"]%in%badSNPs2)==F]
+
+# remove individuals with too much data missing
+propRemoved <- sum((GenoEcol_nuc_new[,"propMissing"]<0.05)==F)/nrow(GenoEcol_nuc_new) # loose 31 inds
+GenoEcol_nuc_new <- GenoEcol_nuc_new[GenoEcol_nuc_new[,"propMissing"]<0.05,]
+GenoEcol_nuc_new_bad <- GenoEcol_nuc_new[GenoEcol_nuc_new[,"propMissing"]>=0.05,]
+
+# remove bad loci
+# badSNPs1 : these are a custom set of loci to remove based on suggestions from JIC or other information
+# badSNPs2 : these are the set of loci with various problems identified in the excel spreadsheet shortSummarySNPsAdj.csv
+GenoEcol_nuc_new_goodCols <- which(colnames(GenoEcol_nuc_new)%in%badSNPs1==F & colnames(GenoEcol_nuc_new)%in%badSNPs2==F)
+GenoEcol_nuc_new <- GenoEcol_nuc_new[,GenoEcol_nuc_new_goodCols]
+
+# re-establish which columns have locus data
+
+# Note this is when the loci number is dropped from the 122 - 141 seen in 2009-2014 to around 106.
+# this comes from a combination of loci flagged as bad, others flagged as trouble based on new reference genome and high error rates inferred from SNPPIT
+lociColumns <- which(colnames(GenoEcol_nuc_new)=="s1187_290152"):which(colnames(GenoEcol_nuc_new)=="s735_701957")
+
+# how many SNP loci?
+lociNames <- colnames(GenoEcol_nuc_new)[which(colnames(GenoEcol_nuc_new)=="s1187_290152"):which(colnames(GenoEcol_nuc_new)=="s735_701957")]
+numLoci <- length(lociColumns)
+lociColumns <- which(colnames(GenoEcol_nuc_new)=="s1187_290152"):which(colnames(GenoEcol_nuc_new)=="s735_701957")
+
+missing <- apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getMissing)
+NGY <- apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getNGY)
+totals <- numLoci-(apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getTotalGenotyped))
+totals_available <- apply(GenoEcol_nuc_new[,lociColumns],1, FUN = getTotalGenotypesAvailable)
+propMissing <- as.numeric(missing)/as.numeric(totals_available)
+# GenoEcol_nuc_new[,"missing"] <- missing
+# GenoEcol_nuc_new[,"NGY"] <- NGY
+# GenoEcol_nuc_new[,"totals"] <- totals
+# GenoEcol_nuc_new[,"propMissing"] <- propMissing
+# GenoEcol_nuc <- GenoEcol_nuc_new
+rametIDs_list <- strsplit(as.character(GenoEcol_nuc[,"RametIDs"]),split=",")
+
+```
+
+*Flower colour phenotypes*
+
+In addition to RGB colour space, we convert these values to HSV. 
+
+- Hue remains as calculated above
+- Saturation (Sat) converted to HSV Saturation S2:
+
+
+```{r prepare phenotype data WITH intensity and run PCA}
+
+# final values used here:
+
+# normal quantile transformation (NQT) of mean of the sd of grayscale (SD)
+# NQT_SD_1
+# NQT_SD_3
+# NQT_SD_4
+# NQT_SD_5
+# NQT_SD_6
+# normal quantile transformation (NQT) of mean Hue
+# NQT_Hue_1
+# NQT_Hue_3
+# NQT_Hue_4
+# NQT_Hue_5
+# NQT_Hue_6
+# normal quantile transformation (NQT) of mean Intensity Density 
+# NQT_Int_1
+# NQT_Int_3
+# NQT_Int_4
+# NQT_Int_5
+# NQT_Int_6
+data.flower <- (flower[, c(235,237:240,241,243:246,247,249:252)])
+
+# except remove intensity? Do analysis with and without
+theseColsToUse <- colnames(data.flower)
+theseColsToUse <- theseColsToUse[c(1:5,11:15)]
+
+flower.phenotype <- flower[, 2]
+
+# apply PCA - scale. = TRUE is highly advisable, but default is FALSE. 
+flower.pca <- prcomp(data.flower,center = TRUE, scale. = TRUE) 
+# pca2 contains just the first few principle components (ommitting those with low standard deviations)
+flower.pca2 <- prcomp(data.flower, center = TRUE, scale. = TRUE, tol=.5)
+
+summaryPCA <- summary(flower.pca)
+# find loadings
+# flower.pca$rotation
+
+# relevant incantation
+aload <- abs(flower.pca$rotation)
+# sweep(aload, 2, colSums(aload), "/")
+data.pca <- flower.pca$x
+
+```
+```{r integrate PCA scores WITH intensity with genotype dataset}
+# need to find them
+pca_IDs <- as.vector(flower[,"id1"])
+#theColsTraits <- which(colnames(flower)=="Hue_1"):which(colnames(flower)=="NQT_Sat_6")
+theColsTraits <- which(colnames(flower)=="Measurement_size.pixels."):which(colnames(flower)=="NQT_Sat_6")
+
+getPos <- function(x) {return(unlist(thisPlant%in%x))}
+PCAscores <- matrix(-1000,nrow(GenoEcol_nuc),5+length(theColsTraits))
+colnames(PCAscores) <- c(colnames(flower)[theColsTraits],"TaylorSet","PC1","PC2","PC3","PC4")
+for (thisRow in 1:length(pca_IDs)) {
+  # thisRow <- 1
+  thisPlant <- pca_IDs[thisRow]
+  thisPos <- which(unlist(lapply(rametIDs_list,getPos))==T)
+  PCAscores[thisPos,1:ncol(PCAscores)] <- c(as.numeric(flower[thisRow,theColsTraits]),1,as.numeric(data.pca[thisRow,1:4]))
+}
+GenoEcol_nuc_PCA <- cbind(GenoEcol_nuc,PCAscores)
+GenoEcol_nuc_PCA <- GenoEcol_nuc_PCA[GenoEcol_nuc_PCA[,"PC1"]!=-1000,]
+
+# GenoEcol_nuc_PCA$phenoCat
+#range(flower.pca$x[,1])
+#range(flower.pca$x[,2])
+colOrder <- c("Y", "FR", "FO", "WR", "W", "WO")
+GenoEcol_nuc_PCA <- GenoEcol_nuc_PCA[GenoEcol_nuc_PCA$phenoCat%in%colOrder,]
+
+# remove dodgey FR in yellow space
+GenoEcol_nuc_PCA <- GenoEcol_nuc_PCA[-which(GenoEcol_nuc_PCA$phenoCat=="FR" & GenoEcol_nuc_PCA$PC1>5),]
+
+write.csv(GenoEcol_nuc_PCA,'GenoEcol_nuc_FlowerMeasures_PCA.csv',row.names=F)
+```
+
+```{r integrate flower data scores WITH intensity with genotype dataset}
+# # need to find them
+# pca_IDs <- as.vector(flower[,"id1"])
+# #theColsTraits <- which(colnames(flower)=="Hue_1"):which(colnames(flower)=="NQT_Sat_6")
+# theColsTraits <- which(colnames(flower)=="Measurement_size.pixels."):which(colnames(flower)=="V_6")
+# 
+# getPos <- function(x) {return(unlist(thisPlant%in%x))}
+# PCAscores <- matrix(-1000,nrow(GenoEcol_nuc),5+length(theColsTraits))
+# colnames(PCAscores) <- c(colnames(flower)[theColsTraits],"TaylorSet","PC1","PC2","PC3","PC4")
+# for (thisRow in 1:length(pca_IDs)) {
+#   # thisRow <- 1
+#   thisPlant <- pca_IDs[thisRow]
+#   thisPos <- which(unlist(lapply(rametIDs_list,getPos))==T)
+#   PCAscores[thisPos,1:ncol(PCAscores)] <- c(as.numeric(flower[thisRow,theColsTraits]),1,as.numeric(data.pca[thisRow,1:4]))
+# }
+# 
+# 
+# GenoEcol_nuc_PCA <- cbind(GenoEcol_nuc,PCAscores)
+# GenoEcol_nuc_PCA <- GenoEcol_nuc_PCA[GenoEcol_nuc_PCA[,"PC1"]!=-1000,]
+# 
+# # GenoEcol_nuc_PCA$phenoCat
+# #range(flower.pca$x[,1])
+# #range(flower.pca$x[,2])
+# colOrder <- c("Y", "FR", "FO", "WR", "W", "WO")
+# GenoEcol_nuc_PCA <- GenoEcol_nuc_PCA[GenoEcol_nuc_PCA$phenoCat%in%colOrder,]
+# 
+# # remove dodgey FR in yellow space
+# GenoEcol_nuc_PCA <- GenoEcol_nuc_PCA[-which(GenoEcol_nuc_PCA$phenoCat=="FR" & GenoEcol_nuc_PCA$PC1>5),]
+# 
+# write.csv(GenoEcol_nuc_PCA,'GenoEcol_nuc_FlowerMeasures_PCA.csv',row.names=F)
+```
+
+```{r function for RGB to HSV}
+# Function to convert RGB to HSV
+rgb_to_hsv <- function(R, G, B) {
+  # Normalize RGB values to [0,1]
+  Rn <- R / 255
+  Gn <- G / 255
+  Bn <- B / 255
+  
+  # Compute max, min, and chroma
+  max_val <- max(Rn, Gn, Bn)
+  min_val <- min(Rn, Gn, Bn)
+  chroma <- max_val - min_val
+  
+  # Compute Hue (Same as your formula)
+  if (chroma == 0) {
+    H <- 0  # Undefined Hue for grayscale colors
+  } else if (max_val == Rn) {
+    H <- ( (Gn - Bn) / chroma ) * 60
+  } else if (max_val == Gn) {
+    H <- (2 + (Bn - Rn) / chroma) * 60
+  } else { # max_val == Bn
+    H <- (4 + (Rn - Gn) / chroma) * 60
+  }
+  
+  # Adjust Hue to ensure it's in the range [0,360]
+  if (H < 0) {
+    H <- H + 360
+  }
+  
+  # Compute Saturation in HSV
+  if (max_val == 0) {
+    S <- 0  # Avoid division by zero
+  } else {
+    S <- chroma / max_val
+  }
+  
+  # Compute Value (Brightness)
+  V <- max_val
+  
+  # Return HSV values
+  return(c(H = H, S = S, V = V))
+}
+
+```
+```{r convert to HSV space}
+#colnames(flower)
+
+colsToGrab1 <- c("Mean.1R", "Mean.1G", "Mean.1B")
+colsToGrab2 <- c("Mean.2R", "Mean.2G", "Mean.2B")
+colsToGrab3 <- c("Mean.3R", "Mean.3G", "Mean.3B")
+colsToGrab4 <- c("Mean.4R", "Mean.4G", "Mean.4B")
+colsToGrab5 <- c("Mean.5R", "Mean.5G", "Mean.5B")
+colsToGrab6 <- c("Mean.6R", "Mean.6G", "Mean.6B")
+
+data.flower1 <- (GenoEcol_nuc_PCA[, colnames(GenoEcol_nuc_PCA)%in%colsToGrab1])
+data.flower2 <- (GenoEcol_nuc_PCA[, colnames(GenoEcol_nuc_PCA)%in%colsToGrab2])
+data.flower3 <- (GenoEcol_nuc_PCA[, colnames(GenoEcol_nuc_PCA)%in%colsToGrab3])
+data.flower4 <- (GenoEcol_nuc_PCA[, colnames(GenoEcol_nuc_PCA)%in%colsToGrab4])
+data.flower5 <- (GenoEcol_nuc_PCA[, colnames(GenoEcol_nuc_PCA)%in%colsToGrab5])
+data.flower6 <- (GenoEcol_nuc_PCA[, colnames(GenoEcol_nuc_PCA)%in%colsToGrab6])
+
+
+hsv_matrix1 <- t(apply(data.flower1, 1, function(row) rgb_to_hsv(row["Mean.1R"], row["Mean.1G"], row["Mean.1B"])))
+hsv_matrix2 <- t(apply(data.flower2, 1, function(row) rgb_to_hsv(row["Mean.2R"], row["Mean.2G"], row["Mean.2B"])))
+hsv_matrix3 <- t(apply(data.flower3, 1, function(row) rgb_to_hsv(row["Mean.3R"], row["Mean.3G"], row["Mean.3B"])))
+hsv_matrix4 <- t(apply(data.flower4, 1, function(row) rgb_to_hsv(row["Mean.4R"], row["Mean.4G"], row["Mean.4B"])))
+hsv_matrix5 <- t(apply(data.flower5, 1, function(row) rgb_to_hsv(row["Mean.5R"], row["Mean.5G"], row["Mean.5B"])))
+hsv_matrix6 <- t(apply(data.flower6, 1, function(row) rgb_to_hsv(row["Mean.6R"], row["Mean.6G"], row["Mean.6B"])))
+colnames(hsv_matrix1) <- c("H_1","S_1","V_1")
+colnames(hsv_matrix2) <- c("H_2","S_2","V_2")
+colnames(hsv_matrix3) <- c("H_3","S_3","V_3")
+colnames(hsv_matrix4) <- c("H_4","S_4","V_4")
+colnames(hsv_matrix5) <- c("H_5","S_5","V_5")
+colnames(hsv_matrix6) <- c("H_6","S_6","V_6")
+GenoEcol_nuc_PCA <- cbind(GenoEcol_nuc_PCA,hsv_matrix1,hsv_matrix2,hsv_matrix3,hsv_matrix4,hsv_matrix5,hsv_matrix6)
+
+
+```
+
+
+```{r PhenoCat and ROS box plots}
+
+GenoEcol_nuc_PCA[,"s261_720757"] <- as.factor(GenoEcol_nuc_PCA[,"s261_720757"])
+GenoEcol_nuc_PCA[,"ros_assembly_543443"] <- as.factor(GenoEcol_nuc_PCA[,"ros_assembly_543443"])
+GenoEcol_nuc_PCA[,"phenoCat_final"] <- as.factor(GenoEcol_nuc_PCA[,"phenoCat_final"])
+
+phenoCat_ROS_Hue6 <- ggplot(GenoEcol_nuc_PCA, aes(x=phenoCat_final, y=Hue_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+      
+
+```
+
+```{r RUBIArubia and ROSelrosEL Hue box plots}
+
+# ros_assembly_543443 Allele 2 is pseudomajus
+# s261_720757 Allele 2 is pseudomajus
+GenoEcol_nuc_PCA[,"s261_720757"] <- as.factor(GenoEcol_nuc_PCA[,"s261_720757"])
+GenoEcol_nuc_PCA[,"ros_assembly_543443"] <- as.factor(GenoEcol_nuc_PCA[,"ros_assembly_543443"])
+
+# Can do new approach
+RUB_RUB.ROSel_ROSel <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==2 & ros_assembly_715001==2 & s261_720757==2)
+RUB_rub.ROSel_ROSel <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==2 & ros_assembly_715001==2 & s261_720757==1)
+rub_rub.ROSel_ROSel <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==2 & ros_assembly_715001==2 & s261_720757==0)
+RubVariants_ROSel.ROSel_background <- rbind(RUB_RUB.ROSel_ROSel,RUB_rub.ROSel_ROSel,rub_rub.ROSel_ROSel)
+RUBrosHaps <- c(rep("RUB_RUB.ROSel_ROSel",nrow(RUB_RUB.ROSel_ROSel)),rep("RUB_rub.ROSel_ROSel",nrow(RUB_rub.ROSel_ROSel)),rep("rub_rub.ROSel_ROSel",nrow(rub_rub.ROSel_ROSel)))
+RubVariants_ROSel.ROSel_background <- cbind(RubVariants_ROSel.ROSel_background,RUBrosHaps)
+
+
+RUB_RUB.ROSel_rosEL <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==1 & ros_assembly_715001==1 & s261_720757==2)
+RUB_rub.ROSel_rosEL <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==1 & ros_assembly_715001==1 & s261_720757==1)
+rub_rub.ROSel_rosEL <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==1 & ros_assembly_715001==1 & s261_720757==0)
+RubVariants_ROSel.rosEL_background <- rbind(RUB_RUB.ROSel_rosEL,RUB_rub.ROSel_rosEL,rub_rub.ROSel_rosEL)
+RUBrosHaps <- c(rep("RUB_RUB.ROSel_rosEL",nrow(RUB_RUB.ROSel_rosEL)),rep("RUB_rub.ROSel_rosEL",nrow(RUB_rub.ROSel_rosEL)),rep("rub_rub.ROSel_rosEL",nrow(rub_rub.ROSel_rosEL)))
+RubVariants_ROSel.rosEL_background <- cbind(RubVariants_ROSel.rosEL_background,RUBrosHaps)
+
+RUB_RUB.rosEL_rosEL <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==0 & ros_assembly_715001==0 & s261_720757==2)
+RUB_rub.rosEL_rosEL <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==0 & ros_assembly_715001==0 & s261_720757==1)
+rub_rub.rosEL_rosEL <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==0 & ros_assembly_715001==0 & s261_720757==0)
+RubVariants_rosEL.rosEL_background <- rbind(RUB_RUB.rosEL_rosEL,RUB_rub.rosEL_rosEL,rub_rub.rosEL_rosEL)
+RUBrosHaps <- c(rep("RUB_RUB.rosEL_rosEL",nrow(RUB_RUB.rosEL_rosEL)),rep("RUB_rub.rosEL_rosEL",nrow(RUB_rub.rosEL_rosEL)),rep("rub_rub.rosEL_rosEL",nrow(rub_rub.rosEL_rosEL)))
+RubVariants_rosEL.rosEL_background <- cbind(RubVariants_rosEL.rosEL_background,RUBrosHaps)
+
+ncol(RubVariants_ROSel.ROSel_background)
+ncol(RubVariants_ROSel.rosEL_background)
+ncol(RubVariants_rosEL.rosEL_background)
+
+RubVariants_ALL_ROSel_backgrounds <- rbind(RubVariants_ROSel.ROSel_background,RubVariants_ROSel.rosEL_background,RubVariants_rosEL.rosEL_background)
+RubVariants_ALL_ROSel_backgrounds[,"RUBrosHaps"] <- as.factor(RubVariants_ALL_ROSel_backgrounds[,"RUBrosHaps"])
+
+write.csv(RubVariants_ALL_ROSel_backgrounds,"/Users/MQ10006146/Library/CloudStorage/OneDrive-MacquarieUniversity/Projects/Snapdragons_shared/Data_Analyses/poolSeq/version3.5/postAnalyses_R/RubVariants_ALL_ROSel_backgrounds.csv")
+
+rub_summary <- RubVariants_ALL_ROSel_backgrounds %>% group_by(s261_720757,ros_assembly_543443) %>% tally()
+rub_AllROSbackgrounds_plot_Hue6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = Hue_6)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 5,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-50, 80)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+     
+rub_AllROSbackgrounds_plot_Hue5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = Hue_5)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 5,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-50, 80)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_Hue4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = Hue_4)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 5,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-50, 80)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+rub_AllROSbackgrounds_plot_Hue3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = Hue_3)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 5,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-50, 80)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_Hue2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = Hue_2)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 5,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-50, 80)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_Hue1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = Hue_1)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 5,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-50, 80)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+
+plot_grid(rub_AllROSbackgrounds_plot_Hue1, rub_AllROSbackgrounds_plot_Hue2, rub_AllROSbackgrounds_plot_Hue3, rub_AllROSbackgrounds_plot_Hue4,rub_AllROSbackgrounds_plot_Hue5,rub_AllROSbackgrounds_plot_Hue6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+```
+
+```{r RUBIA linear model effect size for Hue_6}
+# Fit the linear model
+RubVariants_ALL_ROS_backgrounds <- RubVariants_ALL_ROSel_backgrounds
+RubVariants_ALL_ROS_backgrounds[,"s261_720757"] <- as.numeric(as.vector(RubVariants_ALL_ROS_backgrounds[,"s261_720757"]))
+RubVariants_ALL_ROS_backgrounds[,"ros_assembly_543443"] <- as.numeric(as.vector(RubVariants_ALL_ROS_backgrounds[,"ros_assembly_543443"]))
+
+lm_result <- lm(Hue_4 ~ s261_720757, data = RubVariants_ALL_ROS_backgrounds)
+
+ggplot(RubVariants_ALL_ROS_backgrounds, aes(x = s261_720757, y = Hue_4)) +
+  geom_boxplot() +
+  labs(title = "Genetic Effect Size Across RUBIA Genotypes",
+       x = "s261_720757 Genotypes",
+       y = "Hue_4")
+
+# Print the summary of the linear model
+summary(lm_result)
+AIC(lm_result)
+BIC(lm_result)
+
+# residuals
+residuals <- resid(lm_result)
+plot(x = fitted(lm_result), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction <- lm(Hue_4 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction)
+AIC(lm_result_interaction)
+BIC(lm_result_interaction)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIArubia and ROSelrosEL Sat box plots}
+
+range(RubVariants_ALL_ROSel_backgrounds[,"Sat_6"])
+
+rub_AllROSbackgrounds_plot_Sat1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Sat_1)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0.01,0.42) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Sat2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Sat_2)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0.01,0.42) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Sat3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Sat_3)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0.01,0.42) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Sat4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Sat_4)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0.01,0.42) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Sat5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Sat_5)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0.01,0.42) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Sat6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Sat_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0.01,0.42) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+plot_grid(rub_AllROSbackgrounds_plot_Sat1, rub_AllROSbackgrounds_plot_Sat2, rub_AllROSbackgrounds_plot_Sat3, rub_AllROSbackgrounds_plot_Sat4,rub_AllROSbackgrounds_plot_Sat5,rub_AllROSbackgrounds_plot_Sat6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+
+```
+
+```{r RUBIArubia and ROSelrosEL NQT_Sat box plots}
+
+range(RubVariants_ALL_ROSel_backgrounds[,"NQT_Sat_6"])
+
+rub_AllROSbackgrounds_plot_NQTSat1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=NQT_Sat_1)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-3,3) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_NQTSat2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=NQT_Sat_2)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-3,3) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_NQTSat3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=NQT_Sat_3)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-3,3) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_NQTSat4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=NQT_Sat_4)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-3,3) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_NQTSat5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=NQT_Sat_5)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-3,3) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_NQTSat6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=NQT_Sat_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-3,3) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+plot_grid(rub_AllROSbackgrounds_plot_NQTSat1, rub_AllROSbackgrounds_plot_NQTSat2, rub_AllROSbackgrounds_plot_NQTSat3, rub_AllROSbackgrounds_plot_NQTSat4,rub_AllROSbackgrounds_plot_NQTSat5,rub_AllROSbackgrounds_plot_NQTSat6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+
+```
+
+```{r RUBIArubia and ROSelrosEL Int box plots}
+
+range(RubVariants_ALL_ROSel_backgrounds[,"Int_6"])
+
+rub_AllROSbackgrounds_plot_Int1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Int_1)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0,800) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Int2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Int_2)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0,800) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Int3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Int_3)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0,800) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Int4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Int_4)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0,800) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Int5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Int_5)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0,800) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+rub_AllROSbackgrounds_plot_Int6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x=s261_720757, y=Int_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(0,800) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+plot_grid(rub_AllROSbackgrounds_plot_Int1, rub_AllROSbackgrounds_plot_Int2, rub_AllROSbackgrounds_plot_Int3, rub_AllROSbackgrounds_plot_Int4,rub_AllROSbackgrounds_plot_Int5,rub_AllROSbackgrounds_plot_Int6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+
+```
+
+# HSV 
+
+```{r first linearise the Hue values}
+# Step 1: Normalize Hue values to be between 0 and 360 (in case any are outside this range)
+#data <- RubVariants_ALL_ROSel_backgrounds %>%
+#  mutate(H_1 = ifelse(Hue < 0, Hue + 360, ifelse(Hue > 360, Hue - 360, Hue)))
+
+#RubVariants_ALL_ROSel_backgrounds$Hue_linear <- NULL
+
+
+# H_1 HSV convert to linear
+# Step 2: Compute the median or mean Hue (central reference point)
+median_H_1 <- median(RubVariants_ALL_ROSel_backgrounds$H_1)
+# Step 3: Calculate the linear distance to the median, accounting for wraparound
+RubVariants_ALL_ROSel_backgrounds <- RubVariants_ALL_ROSel_backgrounds %>%
+  mutate(H_1_linear = ifelse(abs(H_1 - median_H_1) <= 180, H_1 - median_H_1, 
+                             ifelse(H_1 < median_H_1, H_1 - median_H_1 + 360, H_1 - median_H_1 - 360)))
+# H_2 HSV convert to linear
+# Step 2: Compute the median or mean Hue (central reference point)
+median_H_2 <- median(RubVariants_ALL_ROSel_backgrounds$H_2)
+# Step 3: Calculate the linear distance to the median, accounting for wraparound
+RubVariants_ALL_ROSel_backgrounds <- RubVariants_ALL_ROSel_backgrounds %>%
+  mutate(H_2_linear = ifelse(abs(H_2 - median_H_2) <= 180, H_2 - median_H_2, 
+                             ifelse(H_2 < median_H_2, H_2 - median_H_2 + 360, H_2 - median_H_2 - 360)))
+# H_3 HSV convert to linear
+# Step 2: Compute the median or mean Hue (central reference point)
+median_H_3 <- median(RubVariants_ALL_ROSel_backgrounds$H_3)
+# Step 3: Calculate the linear distance to the median, accounting for wraparound
+RubVariants_ALL_ROSel_backgrounds <- RubVariants_ALL_ROSel_backgrounds %>%
+  mutate(H_3_linear = ifelse(abs(H_3 - median_H_3) <= 180, H_3 - median_H_3, 
+                             ifelse(H_3 < median_H_3, H_3 - median_H_3 + 360, H_3 - median_H_3 - 360)))
+# H_4 HSV convert to linear
+# Step 2: Compute the median or mean Hue (central reference point)
+median_H_4 <- median(RubVariants_ALL_ROSel_backgrounds$H_4)
+# Step 3: Calculate the linear distance to the median, accounting for wraparound
+RubVariants_ALL_ROSel_backgrounds <- RubVariants_ALL_ROSel_backgrounds %>%
+  mutate(H_4_linear = ifelse(abs(H_4 - median_H_4) <= 180, H_4 - median_H_4, 
+                             ifelse(H_4 < median_H_4, H_4 - median_H_4 + 360, H_4 - median_H_4 - 360)))
+# H_5 HSV convert to linear
+# Step 2: Compute the median or mean Hue (central reference point)
+median_H_5 <- median(RubVariants_ALL_ROSel_backgrounds$H_5)
+# Step 3: Calculate the linear distance to the median, accounting for wraparound
+RubVariants_ALL_ROSel_backgrounds <- RubVariants_ALL_ROSel_backgrounds %>%
+  mutate(H_5_linear = ifelse(abs(H_5 - median_H_5) <= 180, H_5 - median_H_5, 
+                             ifelse(H_5 < median_H_5, H_5 - median_H_5 + 360, H_5 - median_H_5 - 360)))
+
+# H_5 HSV convert to linear
+# Step 2: Compute the median or mean Hue (central reference point)
+median_H_6 <- median(RubVariants_ALL_ROSel_backgrounds$H_6)
+# Step 3: Calculate the linear distance to the median, accounting for wraparound
+RubVariants_ALL_ROSel_backgrounds <- RubVariants_ALL_ROSel_backgrounds %>%
+  mutate(H_6_linear = ifelse(abs(H_6 - median_H_6) <= 180, H_6 - median_H_6, 
+                             ifelse(H_6 < median_H_6, H_6 - median_H_6 + 360, H_6 - median_H_6 - 360)))
+
+```
+
+```{r RUBIArubia and ROSelrosEL Hue in HSV box plots}
+rub_summary <- RubVariants_ALL_ROSel_backgrounds %>% group_by(s261_720757,ros_assembly_543443) %>% tally()
+
+# Create the plot
+rub_AllROSbackgrounds_plot_H6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_6_linear)) +
+    geom_boxplot(na.rm = TRUE) +  
+    labs(
+        y = "Hue 6",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              
+                                    margin = margin(t = 10), 
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),  
+        strip.background = element_rect(fill = "gray90"),  
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 100)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+# # Create the separate label as a text element
+# extra_label <- ggplot() + 
+#     theme_void() + 
+#     annotate("text", x = 1, y = 1, label = expression(italic("ROS")^pse ~ "alleles"), size = 7, fontface = "bold")
+# 
+# # Combine the label and plot using patchwork
+# rub_AllROSbackgrounds_plot_H6 <- extra_label / rub_AllROSbackgrounds_plot_H6 + 
+#     plot_layout(heights = c(0.05, 1))  # Adjust heights to position the label properly
+
+     
+rub_AllROSbackgrounds_plot_H5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_5_linear)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Hue 5",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 100)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_H4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_4_linear)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Hue 4",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 100)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+rub_AllROSbackgrounds_plot_H3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_3_linear)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Hue 3",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 100)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_H2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_2_linear)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+   labs(
+        y = "Hue 2",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 100)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_H1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_1_linear)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Hue 1",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 100)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+
+plot_grid(rub_AllROSbackgrounds_plot_H1, rub_AllROSbackgrounds_plot_H2, rub_AllROSbackgrounds_plot_H3, rub_AllROSbackgrounds_plot_H4,rub_AllROSbackgrounds_plot_H5,rub_AllROSbackgrounds_plot_H6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv",label_size = 18)
+
+pdf("HSV_Hue.pdf",width = 15, height = 10, pointsize = 25)
+plot_grid(rub_AllROSbackgrounds_plot_H1, rub_AllROSbackgrounds_plot_H2, rub_AllROSbackgrounds_plot_H3, rub_AllROSbackgrounds_plot_H4,rub_AllROSbackgrounds_plot_H5,rub_AllROSbackgrounds_plot_H6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv",label_size = 18)
+dev.off()
+
+
+pdf("HSV_Hue_4.pdf",width = 13, height = 10, pointsize = 25)
+
+ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = H_4_linear)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Hue 4",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 44),               
+        axis.title.y = element_text(size = 70, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 70, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 50),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 12,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(-100, 50)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+dev.off()
+```
+
+```{r RUBIArubia and ROSelrosEL Saturation in HSV box plots}
+
+range(RubVariants_ALL_ROSel_backgrounds[,"S_1"])
+
+
+# Create the plot
+rub_AllROSbackgrounds_plot_S6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = S_6)) +
+    geom_boxplot(na.rm = TRUE) +  
+    labs(
+        y = "Sat 6",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              
+                                    margin = margin(t = 10), 
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),  
+        strip.background = element_rect(fill = "gray90"),  
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.0, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+# # Create the separate label as a text element
+# extra_label <- ggplot() + 
+#     theme_void() + 
+#     annotate("text", x = 1, y = 1, label = expression(italic("ROS")^pse ~ "alleles"), size = 7, fontface = "bold")
+# 
+# # Combine the label and plot using patchwork
+# rub_AllROSbackgrounds_plot_H6 <- extra_label / rub_AllROSbackgrounds_plot_H6 + 
+#     plot_layout(heights = c(0.05, 1))  # Adjust heights to position the label properly
+
+     
+rub_AllROSbackgrounds_plot_S5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = S_5)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Sat 5",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.0, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_S4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = S_4)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Sat 4",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.0, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+rub_AllROSbackgrounds_plot_S3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = S_3)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Sat 3",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.0, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_S2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = S_2)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+   labs(
+        y = "Sat 2",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.0, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_S1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = S_1)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Sat 1",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.0, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+pdf("FlowerPheno_HSV_Saturation.pdf",width = 15, height = 10, pointsize = 25)
+
+plot_grid(rub_AllROSbackgrounds_plot_S1, rub_AllROSbackgrounds_plot_S2, rub_AllROSbackgrounds_plot_S3, rub_AllROSbackgrounds_plot_S4,rub_AllROSbackgrounds_plot_S5,rub_AllROSbackgrounds_plot_S6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv",label_size = 18)
+dev.off()
+```
+
+```{r RUBIArubia and ROSelrosEL Value in HSV box plots}
+
+range(RubVariants_ALL_ROSel_backgrounds[,"V_1"])
+
+# Create the plot
+rub_AllROSbackgrounds_plot_V6 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = V_6)) +
+    geom_boxplot(na.rm = TRUE) +  
+    labs(
+        y = "Value 6",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              
+                                    margin = margin(t = 10), 
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),  
+        strip.background = element_rect(fill = "gray90"),  
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.25, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+# # Create the separate label as a text element
+# extra_label <- ggplot() + 
+#     theme_void() + 
+#     annotate("text", x = 1, y = 1, label = expression(italic("ROS")^pse ~ "alleles"), size = 7, fontface = "bold")
+# 
+# # Combine the label and plot using patchwork
+# rub_AllROSbackgrounds_plot_H6 <- extra_label / rub_AllROSbackgrounds_plot_H6 + 
+#     plot_layout(heights = c(0.05, 1))  # Adjust heights to position the label properly
+
+     
+rub_AllROSbackgrounds_plot_V5 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = V_5)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Value 5",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.25, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_V4 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = V_4)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Value 4",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.25, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+rub_AllROSbackgrounds_plot_V3 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = V_3)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Value 3",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.25, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_V2 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = V_2)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+   labs(
+        y = "Value 2",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.25, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+rub_AllROSbackgrounds_plot_V1 <- ggplot(RubVariants_ALL_ROSel_backgrounds, aes(x = s261_720757, y = V_1)) +
+    geom_boxplot(na.rm = TRUE) +  # Removes non-finite values safely
+    labs(
+        y = "Value 1",  
+        x = expression(italic("RUB")^pse ~ "alleles")  
+    ) +
+    theme(
+        axis.text = element_text(size = 18),               
+        axis.title.y = element_text(size = 20, vjust = 3, hjust = 0.5),  # Y-axis label
+        axis.title.x = element_text(size = 20, 
+                                    vjust = -2,              # Moves x-axis label down
+                                    margin = margin(t = 10), # Small margin to keep spacing neat
+                                    hjust = 0.5),             
+        strip.text.x = element_text(size = 18),              
+        plot.margin = margin(t = 20, r = 20, b = 60, l = 40)  # Increased bottom margin
+    ) +
+    stat_summary(fun = median, 
+                 geom = "text", 
+                 aes(label = after_stat(ymax)),  
+                 vjust = -1, 
+                 na.rm = TRUE) +  
+    stat_summary(fun.data = function(x) data.frame(y = max(x, na.rm = TRUE) + 5, label = length(x)),
+                 geom = "text", 
+                 aes(label = after_stat(label)),
+                 vjust = -0.5,
+                 size = 4,
+                 na.rm = TRUE) +  
+    coord_cartesian(ylim = c(0.25, 1)) +  
+    facet_wrap(~ros_assembly_543443, ncol = 3)
+
+
+
+pdf("FlowerPheno_HSV_Value.pdf",width = 15, height = 10, pointsize = 25)
+
+plot_grid(rub_AllROSbackgrounds_plot_V1, rub_AllROSbackgrounds_plot_V2, rub_AllROSbackgrounds_plot_V3, rub_AllROSbackgrounds_plot_V4,rub_AllROSbackgrounds_plot_V5,rub_AllROSbackgrounds_plot_V6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv",label_size = 18)
+dev.off()
+```
+
+```{r RUBIA linear model effect size for Hue_6}
+# Fit the linear model
+RubVariants_ALL_ROS_backgrounds <- RubVariants_ALL_ROSel_backgrounds
+RubVariants_ALL_ROS_backgrounds[,"s261_720757"] <- as.numeric(as.vector(RubVariants_ALL_ROS_backgrounds[,"s261_720757"]))
+RubVariants_ALL_ROS_backgrounds[,"ros_assembly_543443"] <- as.numeric(as.vector(RubVariants_ALL_ROS_backgrounds[,"ros_assembly_543443"]))
+
+lm_result <- lm(H_4 ~ s261_720757, data = RubVariants_ALL_ROS_backgrounds)
+
+ggplot(RubVariants_ALL_ROS_backgrounds, aes(x = s261_720757, y = H_4)) +
+  geom_boxplot() +
+  labs(title = "Genetic Effect Size Across RUBIA Genotypes",
+       x = "s261_720757 Genotypes",
+       y = "Hue_4")
+
+# Print the summary of the linear model
+summary(lm_result)
+AIC(lm_result)
+BIC(lm_result)
+
+# residuals
+residuals <- resid(lm_result)
+plot(x = fitted(lm_result), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+```
+
+Main statistical model in paper in H4, but H5 also significant (the rest are not)
+
+```{r RUBIA linear model with interaction with ROS1 effect size H4}
+# linear model with interaction with ROS
+# interaction with ROS
+RubVariants_ALL_ROS_backgrounds$s261_720757 <- as.factor(RubVariants_ALL_ROS_backgrounds$s261_720757)
+RubVariants_ALL_ROS_backgrounds$ros_assembly_543443 <- as.factor(RubVariants_ALL_ROS_backgrounds$ros_assembly_543443)
+
+lm_result_interaction_H4 <- lm(H_4 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_H4)
+AIC(lm_result_interaction_H4)
+BIC(lm_result_interaction_H4)
+
+par(mfrow = c(2, 2))  # Set plotting layout for diagnostics
+plot(lm_result_interaction_H4)  # Residual plots
+
+# comparison of models shows the interaction is a better model fit 
+lm_no_interaction <- lm(H_4 ~ s261_720757 + ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+anova(lm_no_interaction, lm_result_interaction_H4)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+
+# nice output
+lm_result_interaction
+model_table <- tidy(lm_result_interaction)
+print(model_table)
+
+library(stargazer)
+# Generate formatted table
+stargazer(lm_result_interaction, type = "text", 
+          title = "Regression Results", 
+          digits = 3, 
+          star.cutoffs = c(0.05, 0.01, 0.001))
+
+# Format results using gt
+# tidy(lm_result_interaction) %>%
+#   gt() %>%
+#   tab_header(title = "Regression Interaction Results") %>%
+#   fmt_number(columns = c(estimate, std.error, statistic, p.value), decimals = 3)
+
+tidy(lm_result_interaction_H4) %>%
+  kable(format = "html", digits = 5) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+
+# new attempt to look at effect sizes
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size H5}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_H5 <- lm(H_5 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction)
+AIC(lm_result_interaction)
+BIC(lm_result_interaction)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size H6}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_H6 <- lm(H_6 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction)
+AIC(lm_result_interaction)
+BIC(lm_result_interaction)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size H3}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_H3 <- lm(H_3 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction)
+AIC(lm_result_interaction)
+BIC(lm_result_interaction)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size H2}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_H2 <- lm(H_2 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction)
+AIC(lm_result_interaction)
+BIC(lm_result_interaction)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size H1}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_H1 <- lm(H_1 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction)
+AIC(lm_result_interaction)
+BIC(lm_result_interaction)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r combine model summary into one table with stargazer and gt}
+stargazer(lm_result_interaction_H1, lm_result_interaction_H2, lm_result_interaction_H3, lm_result_interaction_H4, lm_result_interaction_H5, lm_result_interaction_H6, type = "text",title = "Regression Results for Six Models",digits = 6, star.cutoffs = c(0.05, 0.01, 0.001))
+
+
+# Function to tidy each model
+tidy_model_safe <- function(model, model_name) {
+  tryCatch({
+    # Tidy model results and add model name
+    tidy(model) %>%
+      mutate(Model = model_name)
+  }, error = function(e) {
+    # Catch errors and return a message if model tidying fails
+    message(paste("Error with model:", model_name))
+    return(NULL)  # Return NULL for problematic models
+  })
+}
+model_table <- bind_rows(
+  tidy_model_safe(lm_result_interaction_H1, "Model 1"),
+  tidy_model_safe(lm_result_interaction_H2, "Model 2"),
+  tidy_model_safe(lm_result_interaction_H3, "Model 3"),
+  tidy_model_safe(lm_result_interaction_H4, "Model 4"),
+  tidy_model_safe(lm_result_interaction_H5, "Model 5"),
+  tidy_model_safe(lm_result_interaction_H6, "Model 6")
+)
+print(model_table)
+stargazer(lm_result_interaction_H1, lm_result_interaction_H2, lm_result_interaction_H3, lm_result_interaction_H4, lm_result_interaction_H5, lm_result_interaction_H6, type = "text",
+title = "Regression Results for Six Models",digits = 6, star.cutoffs = c(0.05, 0.01, 0.001))
+
+
+# Format results using gt
+model_table %>%
+     gt() %>%
+     tab_header(title = "Summary of Six Linear Regressions") %>%
+     fmt_number(columns = c(estimate, std.error, statistic, p.value), decimals = 3) %>%
+     cols_label(
+         estimate = "Estimate", 
+         std.error = "Std. Error", 
+         statistic = "t-value", 
+         p.value = "p-value"
+     )
+library(writexl)
+
+# Assuming model_table is the table you want to export
+write_xlsx(model_table, "model_results.xlsx")
+```
+
+Now for Saturation
+
+
+```{r RUBIA linear model with interaction with ROS1 effect size S4}
+# linear model with interaction with ROS
+# interaction with ROS
+RubVariants_ALL_ROS_backgrounds$s261_720757 <- as.factor(RubVariants_ALL_ROS_backgrounds$s261_720757)
+RubVariants_ALL_ROS_backgrounds$ros_assembly_543443 <- as.factor(RubVariants_ALL_ROS_backgrounds$ros_assembly_543443)
+
+lm_result_interaction_S4 <- lm(S_4 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_S4)
+AIC(lm_result_interaction_S4)
+BIC(lm_result_interaction_S4)
+
+par(mfrow = c(2, 2))  # Set plotting layout for diagnostics
+plot(lm_result_interaction_S4)  # Residual plots
+
+# comparison of models shows the interaction is a better model fit 
+lm_no_interaction <- lm(H_4 ~ s261_720757 + ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+anova(lm_no_interaction, lm_result_interaction_H4)
+
+# residuals
+residuals <- resid(lm_result_interaction)
+plot(x = fitted(lm_result_interaction), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+
+# nice output
+lm_result_interaction
+model_table <- tidy(lm_result_interaction)
+print(model_table)
+
+library(stargazer)
+# Generate formatted table
+stargazer(lm_result_interaction, type = "text", 
+          title = "Regression Results", 
+          digits = 3, 
+          star.cutoffs = c(0.05, 0.01, 0.001))
+
+# Format results using gt
+# tidy(lm_result_interaction) %>%
+#   gt() %>%
+#   tab_header(title = "Regression Interaction Results") %>%
+#   fmt_number(columns = c(estimate, std.error, statistic, p.value), decimals = 3)
+
+tidy(lm_result_interaction) %>%
+  kable(format = "html", digits = 5) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size S5}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_S5 <- lm(S_5 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_S5)
+AIC(lm_result_interaction_S5)
+BIC(lm_result_interaction_S5)
+
+# residuals
+residuals <- resid(lm_result_interaction_S5)
+plot(x = fitted(lm_result_interaction_S5), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction_S5), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction_S5)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction_S5)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size S6}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_S6 <- lm(S_6 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_S6)
+AIC(lm_result_interaction_S6)
+BIC(lm_result_interaction_S6)
+
+# residuals
+residuals <- resid(lm_result_interaction_S6)
+plot(x = fitted(lm_result_interaction_S6), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size S3}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_S3 <- lm(S_3 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_S3)
+AIC(lm_result_interaction_S3)
+BIC(lm_result_interaction_S3)
+
+# residuals
+residuals <- resid(lm_result_interaction_S3)
+plot(x = fitted(lm_result_interaction_S3), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size S2}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_S2 <- lm(S_2 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_S2)
+AIC(lm_result_interaction_S2)
+BIC(lm_result_interaction_S2)
+
+# residuals
+residuals <- resid(lm_result_interaction_S2)
+plot(x = fitted(lm_result_interaction_S2), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r RUBIA linear model with interaction with ROS1 effect size S1}
+# linear model with interaction with ROS
+# interaction with ROS
+lm_result_interaction_S1 <- lm(S_1 ~ s261_720757 + ros_assembly_543443 + s261_720757:ros_assembly_543443, data = RubVariants_ALL_ROS_backgrounds)
+summary(lm_result_interaction_S1)
+AIC(lm_result_interaction_S1)
+BIC(lm_result_interaction_S1)
+
+# residuals
+residuals <- resid(lm_result_interaction_S1)
+plot(x = fitted(lm_result_interaction_S1), y = residuals, xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residual Plot", pch = 16, col = "blue")
+abline(h = 0, col = "red", lwd = 2)  # Add a horizontal line at y = 0
+
+hist(residuals, breaks = 20, col = "lightblue", main = "Histogram of Residuals", xlab = "Residuals")
+
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+sqrt_abs_res <- sqrt(abs(residuals))
+plot(x = fitted(lm_result_interaction), y = sqrt_abs_res, xlab = "Fitted Values",
+     ylab = "Square Root of Absolute Residuals", main = "Scale-Location Plot", pch = 16, col = "blue")
+abline(h = mean(sqrt_abs_res), col = "red", lwd = 2)  # Add a horizontal line at the mean of the square root of absolute residuals
+
+
+# Extract coefficient estimates and standard errors
+coefficients <- coef(lm_result_interaction)
+standard_errors <- sqrt(diag(vcov(lm_result_interaction)))  # Standard errors are the square root of the diagonal elements of the covariance matrix (vcov) of the model
+
+# Assuming your model formula is: Genetic_Score ~ Genotype + Locus1 + Genotype:Locus1 + Locus2 + Genotype:Locus2
+# The coefficients are ordered as: Intercept, Genotype2, Genotype3, Locus1, Genotype2:Locus1, Genotype3:Locus1, Locus2, Genotype2:Locus2, Genotype3:Locus2
+
+# Effect size for s261_7207571 (main effect)
+effect_size_s261_7207571 <- coefficients[[2]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype2
+effect_size_s261_7207571_Genotype2 <- coefficients[[2]] + coefficients[[3]]
+
+# Effect size for s261_7207571 when considering the interaction with Genotype3
+effect_size_s261_7207571_Genotype3 <- coefficients[[2]] + coefficients[[4]]
+
+# Effect size for Locus2 (main effect)
+effect_size_Locus2 <- coefficients["Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype2
+effect_size_Locus2_Genotype2 <- coefficients["Locus2"] + coefficients["Genotype2:Locus2"]
+
+# Effect size for Locus2 when considering the interaction with Genotype3
+effect_size_Locus2_Genotype3 <- coefficients["Locus2"] + coefficients["Genotype3:Locus2"]
+
+```
+
+```{r combine model summary into one table with stargazer and gt}
+stargazer(lm_result_interaction_S1, lm_result_interaction_S2, lm_result_interaction_S3, lm_result_interaction_S4, lm_result_interaction_S5, lm_result_interaction_S6, type = "text",
+title = "Regression Results for Six Models",digits = 6, star.cutoffs = c(0.05, 0.01, 0.001))
+
+
+# Function to tidy each model
+tidy_model_safe <- function(model, model_name) {
+  tryCatch({
+    # Tidy model results and add model name
+    tidy(model) %>%
+      mutate(Model = model_name)
+  }, error = function(e) {
+    # Catch errors and return a message if model tidying fails
+    message(paste("Error with model:", model_name))
+    return(NULL)  # Return NULL for problematic models
+  })
+}
+model_table_S <- bind_rows(
+  tidy_model_safe(lm_result_interaction_S1, "Model 1"),
+  tidy_model_safe(lm_result_interaction_S2, "Model 2"),
+  tidy_model_safe(lm_result_interaction_S3, "Model 3"),
+  tidy_model_safe(lm_result_interaction_S4, "Model 4"),
+  tidy_model_safe(lm_result_interaction_S5, "Model 5"),
+  tidy_model_safe(lm_result_interaction_S6, "Model 6")
+)
+print(model_table_S)
+stargazer(lm_result_interaction_S1, lm_result_interaction_S2, lm_result_interaction_S3, lm_result_interaction_S4, lm_result_interaction_S5, lm_result_interaction_S6, type = "text",
+title = "Regression Results for Six Models",digits = 6, star.cutoffs = c(0.05, 0.01, 0.001))
+
+
+# Format results using gt
+model_table_S %>%
+     gt() %>%
+     tab_header(title = "Summary of Six Linear Regressions") %>%
+     fmt_number(columns = c(estimate, std.error, statistic, p.value), decimals = 3) %>%
+     cols_label(
+         estimate = "Estimate", 
+         std.error = "Std. Error", 
+         statistic = "t-value", 
+         p.value = "p-value"
+     )
+library(writexl)
+
+# Assuming model_table is the table you want to export
+write_xlsx(model_table, "model_results.xlsx")
+```
+
+
+```{r colour checks}
+# Assuming your dataframe is already loaded
+df <- RubVariants_ALL_ROSel_backgrounds
+
+# Function to convert HSV to HEX color
+recreate_color_from_hsv <- function(H, S, V) {
+  hsv(H / 360, S, V)  # H should be in degrees (0-360), S and V between 0-1
+}
+
+# Apply color conversion using H_4, S_4, V_4
+df$color_hex <- mapply(recreate_color_from_hsv, df$H_4, df$S_4, df$V_4)
+
+df$Red_final <- as.numeric(as.character(df$Red_final))
+df$Yellow_final <- as.numeric(as.character(df$Yellow_final))
+
+# Function to plot 50 individuals per batch
+plot_batch <- function(data, batch_num) {
+  start_idx <- (batch_num - 1) * 50 + 1
+  end_idx <- min(batch_num * 50, nrow(data))
+  
+  batch_data <- data[start_idx:end_idx, ]
+  batch_data$ID_order <- factor(batch_data$PlantID_final, levels = batch_data$PlantID_final)
+  
+  ggplot(batch_data, aes(x = 1, y = 1)) +
+    # Color block
+    geom_tile(aes(fill = color_hex), width = 0.9, height = 0.6) +
+    scale_fill_identity() +
+    
+    # Text block below the color
+    geom_text(aes(y = 0.1, label = paste0(
+      PlantID_final, "\n",
+      phenoCat_final, "\n",
+      "Red: ", round(Red_final, 2), ", Yellow: ", round(Yellow_final, 2)
+    )), 
+    size = 2.5, vjust = 0, lineheight = 1.1, color = "black") +
+    
+    # Facet for layout
+    facet_wrap(~ ID_order, ncol = 5) +
+    
+    theme_minimal() +
+    theme(
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_blank(),
+      plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+      panel.spacing = unit(0.5, "lines")
+    ) +
+    ggtitle(paste("Batch", batch_num, "- Individuals", start_idx, "to", end_idx))
+}
+
+# Plot the first batch (Individuals 1–50)
+plot_batch(df, 1)
+
+plot_batch(df, 2)   # Individuals 51–100
+plot_batch(df, 4)   # Individuals 101–150
+plot_batch(df, 5)   # Individuals 151–200
+
+
+
+# check some photos
+write.csv(RubVariants_ALL_ROSel_backgrounds,"RubVariants_ALL_ROSel_backgrounds.csv")
+```
+
+```{r find photos of Mean values for Hue 4}
+# authenticate account details
+
+drop_auth(new_user = T,cache = TRUE,rdstoken = '/Users/MQ10006146/dropBoxRds.txt')
+acc_info <- drop_acc()
+# extract display name
+acc_info$name$display_name
+# photo locations
+# J 2009,
+# K 2010, all files in one folder: /fieldSeason2010/Data_backups/Flower_Photos
+# L 2011, all files in one folder: /fieldSeason2011/Data_backups/Flower_Photos
+# M 2012, all files in one folder: /fieldSeason2012/Data_backups/Flower_Photos
+# P 2013, Olympus camera grouped files in folders by date taken, for example: /fieldSeason2013/Data_backups/Flower_Photos/2013_06_08
+# S 2014, Olympus camera grouped files in folders by date taken, for example: /fieldSeason2014/Data_backups/Flower_Photos/2014_06_08
+# T 2015, Canon camera grouped files in folders by date taken but different format, for example: /fieldSeason2015/Data_backups/Flower_Photos/100_0906
+# 2016 – 2019, same as 2015.
+
+# doing Hue4 - no influence of white face phenotypes on magenta background
+
+par(mfrow=c(1,1))
+par(mar=c(0.1,0.1,0.1,0.1))
+
+findPhotoMeans <- function(thisGenoPhenoData,thisColMeasure,thisHaplotype,numPhotos,thisPathSave) {
+  # thisGenoPhenoData <- RubVariants_ALL_ROS_backgrounds
+  # thisColMeasure <- "Hue_4"
+  # thisHaplotype <- "RUB_RUB.ROS_ROS"
+  # numPhotos <- 5
+  # thisPathSave <- "/Users/dlfield/Library/CloudStorage/OneDrive-SharedLibraries-EdithCowanUniversity/Snapdragons_2022-03193-FIELD - General/6_DATA_ANALYSIS/poolSeq/version3.5/postAnalyses_R/flowerPhotos/Hue_4/"
+  thisGenoPhenoData_subset <- thisGenoPhenoData %>% filter(RUBrosHaps==thisHaplotype)
+  thisCol_mean <- mean(thisGenoPhenoData_subset[,thisColMeasure])
+  dist_mean <- abs(thisCol_mean-thisGenoPhenoData_subset[,thisColMeasure])
+  thisGenoPhenoData_subset[13,thisColMeasure]
+  thisGenoPhenoData_ordered <- thisGenoPhenoData_subset[order(dist_mean),]
+  thisGenoPhenoData_keep <- thisGenoPhenoData_ordered[1:numPhotos,]
+  # thisGenoPhenoData_keep[,"RametIDs"]
+
+  for (thisRow in 1:nrow(thisGenoPhenoData_keep)) {
+    # colnames(GenoEcol_Planoles_Core_subset)
+    # which(GenoEcol_Planoles_Core_subset[,"PlantID_final"]=="S4795")
+    # thisRow <- 1
+    thisData <- thisGenoPhenoData_keep[thisRow,]
+    thisID <- thisGenoPhenoData_keep[thisRow,"PlantID_final"]
+    thisLabel <- unlist(strsplit(thisID, ""))[[1]]
+    thisLabelRamets <- thisGenoPhenoData_keep[thisRow,"RametIDs"]
+    thisFace <- thisData[,"Face"]
+    thisSide <- thisData[,"Side"]
+    thisRed <- thisData[,"Red_final"]
+    thisYellow <- thisData[,"Yellow_final"]
+    thisPheno <- thisData[,"phenoCat_final"]
+    thisHapName <- thisData[,"multiLoc_Hap_6by7"]
+    thisHapName2 <- thisHaplotype
+  
+    annotateText <- paste0(thisLabelRamets,",[",thisRed,",",thisYellow,"],",thisHapName,", ",thisHaplotype,", ",thisColMeasure," mean = ",round(thisCol_mean,2),", ",thisColMeasure," = ",round(thisData[,thisColMeasure],2))
+    annotateText2 <- thisHaplotype
+  
+    if (thisPheno!=0 | thisPheno!=-9) {
+          if (thisPheno =="FR") {
+            borderCol <-"magenta"
+          }
+          if (thisPheno =="Y") {
+            borderCol <-"yellow"
+            }
+          if (thisPheno=="FO") {
+             borderCol <-"orange"
+          }
+          if (thisPheno=="WR") {
+            borderCol <-"pink"
+          }
+          if (thisPheno=="W") {
+            borderCol <-"white"
+          }
+          if (thisPheno=="WO") {
+            borderCol <- "wheat"
+          }
+        }
+    cat("\n plant: ", paste0(thisRow,": ",thisID))
+    cat("; ",thisLabelRamets)
+    cat(", ",thisHapName)
+    cat(", ",thisHapName2)
+  
+    if (thisLabel %in% c("K","L","M")) {
+      
+      
+    }
+    if (thisLabel %in% c("P","S")) {
+      if (thisLabel == "P") {
+        thisDropBoxSearch <- drop_search(query=paste0(thisFace,".JPG"),path = "/Antirrhinum_fieldData/fieldSeason2013/Data_backups/Flower_Photos", start = 0, max_results = 100)
+        if (thisDropBoxSearch$start!=0) {
+          cat(", Photo found!")
+           thisPhoto_link <- drop_media(thisDropBoxSearch$matches[[1]]$metadata$path_display)$link
+           finalImage <- image_read(thisPhoto_link) %>%
+                      image_background("blue", flatten = TRUE) %>%
+                      image_border(borderCol, "30x30") %>%
+                      #image_scale("400") %>%
+                      image_annotate(annotateText, color = "white", size = 70,gravity = "southwest")
+                      #image_annotate(annotateText2, color = "white", size = 16,location="+50+100")
+           plot(finalImage)
+           image_write(finalImage,paste0(thisPathSave,thisHapName2,"_",thisID,".jpg"))
+        }
+        if (thisDropBoxSearch$start==0) {
+          thisDropBoxSearch <- drop_search(query=paste0(thisFace,".JPG"),path = "/Antirrhinum_fieldData/fieldSeason2014/Data_backups/Flower_Photos", start = 0, max_results = 100)
+          if (thisDropBoxSearch$start!=0) {
+            cat(", Photo found!")
+            thisPhoto_link <- drop_media(thisDropBoxSearch$matches[[1]]$metadata$path_display)$link
+            finalImage <- image_read(thisPhoto_link) %>%
+                      image_background("blue", flatten = TRUE) %>%
+                      image_border(borderCol, "30x30") %>%
+                      image_scale("400") %>%
+                      image_annotate(annotateText, color = "white", size = 20,gravity = "southwest")
+                      #image_annotate(annotateText2, color = "white", size = 22,location="+50+100")
+            plot(finalImage)
+          }
+        }
+      }
+      if (thisLabel == "S") {
+        thisDropBoxSearch <- drop_search(query=paste0(thisFace,".JPG"),path = "/Antirrhinum_fieldData/fieldSeason2014/Data_backups/Flower_Photos", start = 0, max_results = 100)
+        if (thisDropBoxSearch$start!=0) {
+           cat(", Photo found!")
+           thisPhoto_link <- drop_media(thisDropBoxSearch$matches[[1]]$metadata$path_display)$link
+           finalImage <- image_read(thisPhoto_link) %>%
+                      image_background("blue", flatten = TRUE) %>%
+                      image_border(borderCol, "30x30") %>%
+                      #image_scale("400") %>%
+                      image_annotate(annotateText, color = "white", size = 70,gravity = "southwest")
+                      #image_annotate(annotateText2, color = "white", size = 16,location="+50+100")
+           plot(finalImage)
+           image_write(finalImage,paste0(thisPathSave,thisHapName2,"_",thisID,".jpg"))
+        }
+      }
+    }
+  # will need different code like Haralds or Lenkas to find path to other years
+  
+  }
+  
+}
+unique(RUBrosHaps)
+
+thisPath_Hue4 <- "/Users/dlfield/Library/CloudStorage/OneDrive-SharedLibraries-EdithCowanUniversity/Snapdragons_2022-03193-FIELD - General/6_DATA_ANALYSIS/poolSeq/version3.5/postAnalyses_R/flowerPhotos/Hue_4/"
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_RUB.ROS_ROS",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_rub.ROS_ROS",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "rub_rub.ROS_ROS",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_RUB.ROS_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_rub.ROS_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "rub_rub.ROS_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_RUB.ros_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_rub.ros_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "rub_rub.ros_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+```
+
+```{r find photos of specific phenotypes}
+
+# load full data set 
+GenoEcol <- read.csv(paste0(folderLoc,"/PostProcessedData/FinalGenoEcol_short_int.csv"),header=TRUE,fill=FALSE,na.strings = "?",stringsAsFactors = F)
+colnames(GenoEcol)
+table(GenoEcol[,"phenoCat_final"])
+
+nrow(GenoEcol)
+
+GenoEcol_oddPhenos <- GenoEcol[GenoEcol[,"phenoCat_final"] %in% c("Y","FR","W","WO","WR","FO","-9")==F,]
+nrow(GenoEcol_oddPhenos)
+# authenticate account details
+
+drop_auth(new_user = T,cache = TRUE,rdstoken = '/Users/MQ10006146/dropBoxRds.txt')
+acc_info <- drop_acc()
+# extract display name
+acc_info$name$display_name
+# photo locations
+# J 2009,
+# K 2010, all files in one folder: /fieldSeason2010/Data_backups/Flower_Photos
+# L 2011, all files in one folder: /fieldSeason2011/Data_backups/Flower_Photos
+# M 2012, all files in one folder: /fieldSeason2012/Data_backups/Flower_Photos
+# P 2013, Olympus camera grouped files in folders by date taken, for example: /fieldSeason2013/Data_backups/Flower_Photos/2013_06_08
+# S 2014, Olympus camera grouped files in folders by date taken, for example: /fieldSeason2014/Data_backups/Flower_Photos/2014_06_08
+# T 2015, Canon camera grouped files in folders by date taken but different format, for example: /fieldSeason2015/Data_backups/Flower_Photos/100_0906
+# 2016 – 2019, same as 2015.
+
+# doing Hue4 - no influence of white face phenotypes on magenta background
+
+par(mfrow=c(1,1))
+par(mar=c(0.1,0.1,0.1,0.1))
+
+findPhoto <- function(thisGenoPhenoData,thisPhenoCat,thisYear,numPhotos,thisPathSave) {
+  # thisGenoPhenoData <- GenoEcol_nuc_PCA
+  # thisColMeasure <- "Hue_4"
+  # thisHaplotype <- "RUB_RUB.ROS_ROS"
+  # numPhotos <- 5
+  # thisPathSave <- "/Users/dlfield/Library/CloudStorage/OneDrive-SharedLibraries-EdithCowanUniversity/Snapdragons_2022-03193-FIELD - General/6_DATA_ANALYSIS/poolSeq/version3.5/postAnalyses_R/flowerPhotos/Hue_4/"
+  colnames(thisGenoPhenoData)
+  table(thisGenoPhenoData[,"phenoCat_final"])
+  thisGenoPhenoData_subset <- thisGenoPhenoData %>% filter(RUBrosHaps==thisHaplotype)
+  thisCol_mean <- mean(thisGenoPhenoData_subset[,thisColMeasure])
+  dist_mean <- abs(thisCol_mean-thisGenoPhenoData_subset[,thisColMeasure])
+  thisGenoPhenoData_subset[13,thisColMeasure]
+  thisGenoPhenoData_ordered <- thisGenoPhenoData_subset[order(dist_mean),]
+  thisGenoPhenoData_keep <- thisGenoPhenoData_ordered[1:numPhotos,]
+  # thisGenoPhenoData_keep[,"RametIDs"]
+
+  for (thisRow in 1:nrow(thisGenoPhenoData_keep)) {
+    # colnames(GenoEcol_Planoles_Core_subset)
+    # which(GenoEcol_Planoles_Core_subset[,"PlantID_final"]=="S4795")
+    # thisRow <- 1
+    thisData <- thisGenoPhenoData_keep[thisRow,]
+    thisID <- thisGenoPhenoData_keep[thisRow,"PlantID_final"]
+    thisLabel <- unlist(strsplit(thisID, ""))[[1]]
+    thisLabelRamets <- thisGenoPhenoData_keep[thisRow,"RametIDs"]
+    thisFace <- thisData[,"Face"]
+    thisSide <- thisData[,"Side"]
+    thisRed <- thisData[,"Red_final"]
+    thisYellow <- thisData[,"Yellow_final"]
+    thisPheno <- thisData[,"phenoCat_final"]
+    thisHapName <- thisData[,"multiLoc_Hap_6by7"]
+    thisHapName2 <- thisHaplotype
+  
+    annotateText <- paste0(thisLabelRamets,",[",thisRed,",",thisYellow,"],",thisHapName,", ",thisHaplotype,", ",thisColMeasure," mean = ",round(thisCol_mean,2),", ",thisColMeasure," = ",round(thisData[,thisColMeasure],2))
+    annotateText2 <- thisHaplotype
+  
+    if (thisPheno!=0 | thisPheno!=-9) {
+          if (thisPheno =="FR") {
+            borderCol <-"magenta"
+          }
+          if (thisPheno =="Y") {
+            borderCol <-"yellow"
+            }
+          if (thisPheno=="FO") {
+             borderCol <-"orange"
+          }
+          if (thisPheno=="WR") {
+            borderCol <-"pink"
+          }
+          if (thisPheno=="W") {
+            borderCol <-"white"
+          }
+          if (thisPheno=="WO") {
+            borderCol <- "wheat"
+          }
+        }
+    cat("\n plant: ", paste0(thisRow,": ",thisID))
+    cat("; ",thisLabelRamets)
+    cat(", ",thisHapName)
+    cat(", ",thisHapName2)
+  
+    if (thisLabel %in% c("K","L","M")) {
+      
+      
+    }
+    if (thisLabel %in% c("P","S")) {
+      if (thisLabel == "P") {
+        thisDropBoxSearch <- drop_search(query=paste0(thisFace,".JPG"),path = "/Antirrhinum_fieldData/fieldSeason2013/Data_backups/Flower_Photos", start = 0, max_results = 100)
+        if (thisDropBoxSearch$start!=0) {
+          cat(", Photo found!")
+           thisPhoto_link <- drop_media(thisDropBoxSearch$matches[[1]]$metadata$path_display)$link
+           finalImage <- image_read(thisPhoto_link) %>%
+                      image_background("blue", flatten = TRUE) %>%
+                      image_border(borderCol, "30x30") %>%
+                      #image_scale("400") %>%
+                      image_annotate(annotateText, color = "white", size = 70,gravity = "southwest")
+                      #image_annotate(annotateText2, color = "white", size = 16,location="+50+100")
+           plot(finalImage)
+           image_write(finalImage,paste0(thisPathSave,thisHapName2,"_",thisID,".jpg"))
+        }
+        if (thisDropBoxSearch$start==0) {
+          thisDropBoxSearch <- drop_search(query=paste0(thisFace,".JPG"),path = "/Antirrhinum_fieldData/fieldSeason2014/Data_backups/Flower_Photos", start = 0, max_results = 100)
+          if (thisDropBoxSearch$start!=0) {
+            cat(", Photo found!")
+            thisPhoto_link <- drop_media(thisDropBoxSearch$matches[[1]]$metadata$path_display)$link
+            finalImage <- image_read(thisPhoto_link) %>%
+                      image_background("blue", flatten = TRUE) %>%
+                      image_border(borderCol, "30x30") %>%
+                      image_scale("400") %>%
+                      image_annotate(annotateText, color = "white", size = 20,gravity = "southwest")
+                      #image_annotate(annotateText2, color = "white", size = 22,location="+50+100")
+            plot(finalImage)
+          }
+        }
+      }
+      if (thisLabel == "S") {
+        thisDropBoxSearch <- drop_search(query=paste0(thisFace,".JPG"),path = "/Antirrhinum_fieldData/fieldSeason2014/Data_backups/Flower_Photos", start = 0, max_results = 100)
+        if (thisDropBoxSearch$start!=0) {
+           cat(", Photo found!")
+           thisPhoto_link <- drop_media(thisDropBoxSearch$matches[[1]]$metadata$path_display)$link
+           finalImage <- image_read(thisPhoto_link) %>%
+                      image_background("blue", flatten = TRUE) %>%
+                      image_border(borderCol, "30x30") %>%
+                      #image_scale("400") %>%
+                      image_annotate(annotateText, color = "white", size = 70,gravity = "southwest")
+                      #image_annotate(annotateText2, color = "white", size = 16,location="+50+100")
+           plot(finalImage)
+           image_write(finalImage,paste0(thisPathSave,thisHapName2,"_",thisID,".jpg"))
+        }
+      }
+    }
+  # will need different code like Haralds or Lenkas to find path to other years
+  
+  }
+  
+}
+unique(RUBrosHaps)
+
+thisPath_Hue4 <- "/Users/dlfield/Library/CloudStorage/OneDrive-SharedLibraries-EdithCowanUniversity/Snapdragons_2022-03193-FIELD - General/6_DATA_ANALYSIS/poolSeq/version3.5/postAnalyses_R/flowerPhotos/Hue_4/"
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_RUB.ROS_ROS",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_rub.ROS_ROS",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "rub_rub.ROS_ROS",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_RUB.ROS_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_rub.ROS_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "rub_rub.ROS_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_RUB.ros_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "RUB_rub.ros_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+findPhotoMeans(thisGenoPhenoData = RubVariants_ALL_ROS_backgrounds,thisColMeasure = "Hue_4",thisHaplotype = "rub_rub.ros_ros",numPhotos = 6,thisPathSave = thisPath_Hue4)
+
+```
+
+```{r RUBIA and ROS NQT_Hue box plots}
+range(RubVariants_ALL_ROS_backgrounds[,"NQT_Hue_6"])
+
+rub_AllROSbackgrouns_plot_NQT_Hue6 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=NQT_Hue_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-4,+4) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+      
+rub_AllROSbackgrouns_plot_NQT_Hue5 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=NQT_Hue_5)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-4,+4) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_NQT_Hue4 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=NQT_Hue_4)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-4,+4) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_NQT_Hue3 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=NQT_Hue_3)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-4,+4) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_NQT_Hue2 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=NQT_Hue_2)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-4,+4) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_NQT_Hue1 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=NQT_Hue_1)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-4,+4) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+
+plot_grid(rub_AllROSbackgrouns_plot_NQT_Hue1, rub_AllROSbackgrouns_plot_NQT_Hue2, rub_AllROSbackgrouns_plot_NQT_Hue3, rub_AllROSbackgrouns_plot_NQT_Hue4,rub_AllROSbackgrouns_plot_NQT_Hue5,rub_AllROSbackgrouns_plot_NQT_Hue6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+```
+
+```{r RUBIA and controlling for ROSel FLA/sulf haplotype with Hue box plots}
+
+# ros_assembly_543443 Allele 2 is pseudomajus
+# s261_720757 Allele 2 is pseudomajus
+GenoEcol_nuc_PCA[,"s261_720757"] <- as.factor(GenoEcol_nuc_PCA[,"s261_720757"])
+GenoEcol_nuc_PCA[,"multiLoc_Hap_24by7"] <- as.factor(GenoEcol_nuc_PCA[,"multiLoc_Hap_24by7"])
+
+table(GenoEcol_nuc_PCA[,"multiLoc_Hap_24by7"])
+
+# Controlling for ROSel background (no recombinants) and FLA/sulf (FLA recombinants allowed, SULF/sulf allowed) we need:
+pseudoParental <- c('SULF.SULF;FLA_r.FLA_r/ROSel.ROSel', 'SULF.sulf;FLA_r.FLA_r/ROSel.ROSel', 'SULF.SULF;FLA_r.FLA_r/ROSel.ROSel','SULF.sulf;FLA.fla/ROSel.ROSel','SULF.sulf;fla.fla/ROSel.ROSel','SULF.SULF;fla.fla/ROSel.ROSel')
+# picking out rosEL.rosEL (no rosel_r or ROSel_r), SULF.SULF & SULF.sulf, but agnostic to FLA haplotype
+hybrid <- c('SULF.SULF;FLA_r.FLA_r/rosEL.ROSel', 'SULF.sulf;FLA_r.FLA_r/rosEL.ROSel', 'SULF.SULF;FLA_r.FLA_r/rosEL.ROSel','SULF.sulf;FLA.fla/rosEL.ROSel','SULF.sulf;fla.fla/rosEL.ROSel','SULF.SULF;fla.fla/rosEL.ROSel','SULF.sulf;fla.fla/rosEL.ROSel','SULF.SULF;fla.fla/rosEL.ROSel','SULF.SULF;FLA.FLA/rosEL.ROSel','SULF.SULF;FLA_r.fla/rosEL.ROSel','SULF.sulf;FLA_r.fla/rosEL.ROSel')
+
+striatumParental <- c('sulf.sulf;FLA_r.FLA_r/rosEL.rosEL','sulf.sulf;FLA.fla/rosEL.rosEL','sulf.sulf;fla.fla/rosEL.rosEL','sulf.sulf;FLA_r.fla/rosEL.rosEL','sulf.sulf;FLA_r.FLA/rosEL.rosEL','sulf.sulf;FLA.FLA/rosEL.rosEL')
+
+RUB_RUB.ROS_ROS <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%pseudoParental & s261_720757==2)
+RUB_rub.ROS_ROS <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%pseudoParental & s261_720757==1)
+rub_rub.ROS_ROS <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%pseudoParental & s261_720757==0)
+RubVariants_ROS.ROS_background <- rbind(RUB_RUB.ROS_ROS,RUB_rub.ROS_ROS,rub_rub.ROS_ROS)
+
+RUB_RUB.ROS_ros <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%hybrid & s261_720757==2)
+RUB_rub.ROS_ros <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%hybrid & s261_720757==1)
+rub_rub.ROS_ros <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%hybrid & s261_720757==0)
+RubVariants_ROS.ros_background <- rbind(RUB_RUB.ROS_ros,RUB_rub.ROS_ros,rub_rub.ROS_ros)
+
+RUB_RUB.ros_ros <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%striatumParental & s261_720757==2)
+RUB_rub.ros_ros <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%striatumParental & s261_720757==1)
+rub_rub.ros_ros <- GenoEcol_nuc_PCA %>% filter(multiLoc_Hap_24by7%in%striatumParental & s261_720757==0)
+RubVariants_ros.ros_background <- rbind(RUB_RUB.ros_ros,RUB_rub.ros_ros,rub_rub.ros_ros)
+
+
+RubVariants_ALL_ROS_backgrounds_haps <- rbind(RubVariants_ROS.ROS_background,RubVariants_ROS.ros_background,RubVariants_ros.ros_background)
+
+rub_AllROSbackgrouns_plot_Hue6_haps <- ggplot(RubVariants_ALL_ROS_backgrounds_haps, aes(x=s261_720757, y=Hue_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-30,60) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+      
+rub_AllROSbackgrouns_plot_Hue5_haps <- ggplot(RubVariants_ALL_ROS_backgrounds_haps, aes(x=s261_720757, y=Hue_5)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-30,60) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Hue4_haps <- ggplot(RubVariants_ALL_ROS_backgrounds_haps, aes(x=s261_720757, y=Hue_4)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-30,60) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Hue3_haps <- ggplot(RubVariants_ALL_ROS_backgrounds_haps, aes(x=s261_720757, y=Hue_3)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-30,60) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Hue2_haps <- ggplot(RubVariants_ALL_ROS_backgrounds_haps, aes(x=s261_720757, y=Hue_2)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-30,60) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Hue1_haps <- ggplot(RubVariants_ALL_ROS_backgrounds_haps, aes(x=s261_720757, y=Hue_1)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        ylim(-30,60) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+
+plot_grid(rub_AllROSbackgrouns_plot_Hue1_haps, rub_AllROSbackgrouns_plot_Hue2_haps, rub_AllROSbackgrouns_plot_Hue3_haps, rub_AllROSbackgrouns_plot_Hue4_haps,rub_AllROSbackgrouns_plot_Hue5_haps,rub_AllROSbackgrouns_plot_Hue6_haps,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+```
+
+```{r RUBIA and ROS Int box plots}
+
+rub_AllROSbackgrouns_plot_Int6 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Int_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+      
+rub_AllROSbackgrouns_plot_Int5 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Int_5)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Int4 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Int_4)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Int3 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Int_3)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Int2 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Int_2)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+rub_AllROSbackgrouns_plot_Int1 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Int_1)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+
+
+plot_grid(rub_AllROSbackgrouns_plot_Int1, rub_AllROSbackgrouns_plot_Int2, rub_AllROSbackgrouns_plot_Int3, rub_AllROSbackgrouns_plot_Int4,rub_AllROSbackgrouns_plot_Int5,rub_AllROSbackgrouns_plot_Int6,labels = c('A', 'B', 'C', 'D','E','F'), align="hv")
+```
+
+```{r RUBIA and ROS box plots controlling for FLA}
+
+GenoEcol_nuc_PCA[,"s261_720757"] <- as.factor(GenoEcol_nuc_PCA[,"s261_720757"])
+GenoEcol_nuc_PCA[,"ros_assembly_543443"] <- as.factor(GenoEcol_nuc_PCA[,"ros_assembly_543443"])
+
+RUB_RUB.ROS_ROS <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==2 & s261_720757==2)
+RUB_rub.ROS_ROS <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==2 & s261_720757==1)
+rub_rub.ROS_ROS <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==2 & s261_720757==0)
+RubVariants_ROS.ROS_background <- rbind(RUB_RUB.ROS_ROS,RUB_rub.ROS_ROS,rub_rub.ROS_ROS)
+
+RUB_RUB.ROS_ros <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==1 & s261_720757==2)
+RUB_rub.ROS_ros <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==1 & s261_720757==1)
+rub_rub.ROS_ros <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==1 & s261_720757==0)
+RubVariants_ROS.ros_background <- rbind(RUB_RUB.ROS_ros,RUB_rub.ROS_ros,rub_rub.ROS_ros)
+
+RUB_RUB.ros_ros <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==0 & s261_720757==2)
+RUB_rub.ros_ros <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==0 & s261_720757==1)
+rub_rub.ros_ros <- GenoEcol_nuc_PCA %>% filter(ros_assembly_543443==0 & s261_720757==0)
+RubVariants_ros.ros_background <- rbind(RUB_RUB.ros_ros,RUB_rub.ros_ros,rub_rub.ros_ros)
+
+ncol(RubVariants_ROS.ROS_background)
+ncol(RubVariants_ROS.ros_background)
+ncol(RubVariants_ros.ros_background)
+
+RubVariants_ALL_ROS_backgrounds <- rbind(RubVariants_ROS.ROS_background,RubVariants_ROS.ros_background,RubVariants_ros.ros_background)
+
+rub_summary <- RubVariants_ALL_ROS_backgrounds %>% group_by(s261_720757,ros_assembly_543443) %>% tally()
+rub_AllROSbackgrouns_plot_Hue6 <- ggplot(RubVariants_ALL_ROS_backgrounds, aes(x=s261_720757, y=Hue_6)) + 
+        geom_boxplot() +
+        theme(axis.text=element_text(size=16)) +
+        theme(axis.title.y = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(axis.title.x = element_text(size=16,vjust=2.5,hjust=0.5)) + 
+        theme(strip.text.x = element_text(size=16)) +
+        stat_summary(fun.y = median, fun.ymax = length,
+               geom = "text", aes(label = ..ymax..), vjust = -1) +
+        facet_wrap(~ros_assembly_543443,ncol=3) 
+      
+
+```
+

@@ -1,0 +1,463 @@
+---
+title: "Fast clines RNAseq Bioinformatics"
+author: "David Field"
+date: "01/03/2025"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(engine.opts = list(bash = "-l"))
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+# Linux VM
+#setwd("/home/student/RNAseq/D01_Raw_Fastq_files")
+
+```
+
+## **Introduction**
+The dataset comprises two separate experiments each using corolla tissue from Antirrhinum flowers as the input tissue. For each experiment there is one comparison with three biological replicates for each condition.
+
+Experiment 1: comparison of two different taxa *A. majus ssp majus variant pseudomajus* (H224, magenta flowers) and *A. majus ssp majus variant striatum* (H223, yellow flowers).
+
+Experiment 2: comparison of two different genotypes from a segregating population, FLA (Samples 53-55) and fla (samples 56-58).
+
+Our objectives are to conduct some quality control, filtering and map the data to the *Antirrhinum* reference genome v3. We will also look at the quality of the mapping and have a look at ways to visualise the output using IGV. Next we peform Differential Gene Expression Analyses, focusing on Chromosome 5 and the region around the RUBIA gene.
+
+### **Protocol references**  
+Pertea, M., Kim, D., Pertea, G. et al. Transcript-level expression analysis of RNA-seq experiments with HISAT, StringTie and Ballgown. Nat Protoc 11, 1650–1667 (2016). https://doi.org/10.1038/nprot.2016.095
+
+Patro R, Duggal G, Love MI, Irizarry RA, Kingsford C. Salmon provides fast and bias-aware quantification of transcript expression. Nat Methods. 2017;14(4):417-419. doi:10.1038/nmeth.4197
+
+Love, M.I., Huber, W. & Anders, S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biol 15, 550 (2014). https://doi.org/10.1186/s13059-014-0550-8
+
+
+## **The Data**
+
+The data required for this class has already been placed on your computer under /home/RNAseq.
+
+In here you will find:
+
+- D01_Raw_Fastq_files = the raw fastq files, `. `
+- D02_Filtered_Fastq_files = fastq files post-filtering, `not available here`
+- D03_Resources = reference genome, adapter sequences etc.
+- D04_QC = quality control reports.
+- D05_alignments/Hisat2 = the data mapped to the reference genome.
+
+### Raw Fastq files (D01_Raw_Fastq_files)
+
+For the H224 individual (A. majus pseudomajus, with magenta flowers) and the H223 individual (A. majus ssp striatum, yellow flowers) there are 2 x 3 files each. In both cases, R1 and R2 are for the read 1 and read 2 of the pair (paired-end read sequencing). The sequence lengths are different (H-set is 2x75 and S53-58 are 2x 150bp). And so for each individual there are also 3 replicates; H223-A, H223-B and H223-C are the three replicate striatum samples and H224-D, H224-E and H224-F the three replicate pseudomajus. 
+
+### 1. Data quality control and filtering
+\vspace{10pt}
+
+To explore the properties of our dataset, we use the tool FastQC (https://www.bioinformatics.babraham.ac.uk/projects/fastqc/), to report descriptive statistics for the sequence read files. Rather than view the individual output files for each sample, we use MultiQC to aggregate the FastQC reports.
+
+Note that in the code chunks below I have tried to get this working in markdown, calling the code either to R or to bash (Unix terminal). However, depending on the R studio setup, the bash code chunks may not work as intended. But this is not a big problem, simply copy and past what is contained within them to the terminal window.
+
+```{r, eval=F}
+system(command="pwd")
+```
+
+#### 1.1 Properties of the raw data
+\vspace{10pt}
+
+Running a FastQC analysis of one of the data files. The following code chunk below will do most of what is required:
+
+- move into the folder `D01_Raw_Fastq_files`.
+- make a directory to receive the output for fastqc (fastqc_raw).
+- loop through all the fastq files and send them to fastqc.
+- make a directory for the results summary.
+- aggregate the results using multiqc.
+
+```{bash, eval=FALSE}
+# Create output directory
+mkdir fastqc_raw
+
+#loop through all  .fastq.gz input files, printing the results to the new directory
+for i in *_R1.fastq.gz                                                                       
+do
+base=$(basename ${i} _R1.fastq.gz ) 
+fastqc --outdir=fastqc_raw $i ${base}_R2.fastq.gz
+done
+
+# Aggregate QC results 
+mkdir ../res_summaries
+multiqc --outdir res_summaries --filename multiqc_raw fastqc_raw
+
+```
+
+There are two types of output files here to look at. Firstly, fastqc produces a summary report of each data file (e.g. H223_A_R1_fastqc.html) that can be open in your web broswer
+
+Open one of these up and look at the various summary statistics. These include:
+
+- basic statistics.
+- per base sequence quality.
+- per base sequence content.
+- sequence duplication levels.
+- over represented sequences.
+
+The next data output file is the summary, which takes all the files in the folder and makes an overall assessment. This file is `multiqc_raw.html`
+
+#### 1.2 Filtering the raw data with Trimmomatic
+
+We use the tool Trimmomatic (http://www.usadellab.org/cms/?page=trimmomatic) to remove poor quality reads or read ends and to filter out any sequencing adaptors that may be present in the reads. We have provided a file adaptors.fa in the resources directory (D03_Resources) containing the set of potentially contaminating adaptors and primers. Trimmomatic creates four output files for the original read pair: the read pairs that are carried through intact through the filtering process, and unpaired reads that lose their mate due to low quality. There shouldn't be many reads in the unpaired outputs.  A quick way to check the read number is with the wc -l infile command, shows the number of lines in a file. A read in Fastq format is 4 lines long, so divide the number of lines by 4 to obtain the read count.
+
+```{bash, eval=T}
+trimmomatic PE -threads 4 H223_A_R2.fastq.gz \
+filtered/H223_A_R2.trim.fastq.gz filtered/unpaired/${base}_1un.trim.fastq.gz \
+filtered/H223_A_R2.trim.fastq.gz filtered/unpaired/${base}_2un.trim.fastq.gz \
+ILLUMINACLIP:../D03_Resources/adaptors.fa:2:30:10:2:keepBothReads LEADING:3 TRAILING:3 MINLEN:40 
+```
+
+
+```{bash, eval=FALSE}
+#Create output directory
+mkdir -p filtered/unpaired
+
+for infile in *_R1.fastq.gz
+do      
+base=$(basename ${infile} _R1.fastq.gz)                                                         
+echo "trimming "$base 
+trimmomatic PE -threads 4 ${infile} ${base}_R2.fastq.gz \
+filtered/${base}_1.trim.fastq.gz filtered/unpaired/${base}_1un.trim.fastq.gz \
+filtered/${base}_2.trim.fastq.gz filtered/unpaired/${base}_2un.trim.fastq.gz \
+ILLUMINACLIP:../D03_Resources/adaptors.fa:2:30:10:2:keepBothReads LEADING:3 TRAILING:3 MINLEN:40 
+done
+
+```
+\vspace{10pt}
+
+
+#### 1.3 Checking the read dataset after filtering
+
+Here we are using FastQC again, this time with the newly trimmed and filtered files:
+
+- make a directory to receive the output for fastqc (fastqc_trimmed).
+- loop through all the fastq trimmed files and send them to fastqc.
+- make a directory for the results summary.
+- aggregate the results using multiqc.
+
+\vspace{10pt}
+
+```{bash, eval=FALSE}
+#Create output directory
+#mkdir ../fastqc_trimmed
+mkdir fastqc_trimmed
+# move the trimmed fastq files to same folder as originals
+
+#loop through all  .fastq.gz input files, printing the results to the new directory
+for i in *_1.trim.fastq.gz                                                                       
+do
+base=$(basename ${i} _1.trim.fastq.gz ) 
+fastqc --outdir=./fastqc_trimmed $i ${base}_2.trim.fastq.gz
+done
+
+# Aggregate QC results 
+multiqc --outdir ./res_summaries --filename multiqc_filtered ./fastqc_trimmed
+
+```
+
+### 2 Mapping read pairs to the reference genome
+\vspace{10pt}
+
+Here we use HiSat2 to map the RNAseq data to the *Antirrhinum* reference genome: Amajus.IGDBv3.chr.fasta 
+
+#### 2.1 Indexing the reference genome
+An index needs to be created before the reads can be mapped, and this has been done already, using the command hisat2-build 
+
+```{bash, eval=F}
+hisat2-build  <reference_in> <index_name>
+```
+
+#### 2.2 Mapping individual samples
+
+We use a basic command to make the alignments 
+
+```{bash, eval=FALSE}
+hisat2 -q   -x resources/Amajus.IGDBv3.chr  -1 read1.fastq -2 read2.fastq.gz -S sample.V3.hisat2.stranded.mapped.sam  --summary-file sample.mapping.summary.txt --rna-strandness RF --dta
+```
+
+We supply the index details to the aligner with the -x parameter (here: -x resources/Amajus.IGDBv3.chr)
+
+The RNAseq libraries were prepared using the TruSeq Stranded mRNA Sample Prep Kit. Stranded libaries have some tweaks to their preparation which mean you can infer the direction of the transcript, which is particularly useful when the reference annotation is unknown or not well curated. We used the --dta flag for subsequent steps of our pipeline as it reports alignments tailored for transcript assemblers including StringTie. With this option, HISAT2 requires longer anchor lengths for de novo discovery of splice sites. This leads to fewer alignments with short-anchors, which helps transcript assemblers improve significantly in computation and memory usage.
+
+The sam file reports the alignments according to the order that it encounters the reads in the input files and needs to be compressed and sorted into chromosome order for subsequent use. We also create an index file that many tools require for reading in these large alignment files.
+
+```{bash, eval=FALSE}
+samtools sort -o sample.stranded.sorted.bam  sample.V3.hisat2.stranded.mapped.sam  
+samtools index sample.stranded.sorted.bam
+```
+
+#### 2.3 Mapping all samples 
+
+As previously, we can supply the command with a loop to map all of the samples in turn, and use multiqc to summarise the mapping
+
+```{bash, eval=FALSE}
+#working within the filtered directory (containing the trimmed reads)
+mkdir ../Hisat_mapping
+
+for i in *_1.trim.fastq.gz                                                                       
+do
+base=$(basename ${i} _1.trim.fastq.gz ) 
+echo "mapping "$base
+hisat2 -q  -x ../resources/Amajus.IGDBv3.chr  -1 $i -2 ${base}_2.trim.fastq.gz  -S ../Hisat_mapping/${base}.V3.hisat2.stranded.mapped.sam  --summary-file ../Hisat_mapping/${base}.mapping.summary.txt --rna-strandness RF --dta
+echo "sorting sam for "$base
+samtools sort -o ../Hisat_mapping/${base}.V3.hisat.stranded.sorted.bam  ../Hisat_mapping/${base}.V3.hisat2.stranded.mapped.sam 
+echo "indexing "$base
+samtools index ../Hisat_mapping/${base}.V3.hisat.stranded.sorted.bam 
+done
+
+multiqc --outdir ./res_summaries --filename multiqc_hisat ./Hisat_mapping
+
+```
+
+#### 2.4 Salmon and Index construction
+
+We also use Salmon designed specifically for quantifying transcript abundance and incorporates sample-specific bias models to account for certain properties of the dataset.
+
+We have pre-computed a "decoy-aware" index for the mapping. This  index is built from the transcriptome sequences but also provides all genomic sequences so that RNAseq reads from unannotated transcripts don't pollute the counts for the annotated transcripts. In practical terms, this involves concatenating the genome reference sequence to the end of the transcriptome dataset (all the predicted transcript sequences) and providing a list of genomic reference sequence names.
+
+```{bash, eval=FALSE}
+salmon index -t transcriptome_with_decoys.fasta -i transcripts_with_decoy_index --decoys decoys.txt -k 31
+```
+
+For each of the samples we then used salmon to quantify transcript abundance, including flags to increase the stringency of the mappings (--validateMappings) and to learn and apply corrections for GC bias and primer bias (--gcBias --seqBias)
+
+The flag -l A tells Salmon to try and automatically determine the library type. In our case, it correctly reports ISR: An inward facing stranded library in which the first read comes from the reverse strand.
+
+Salmon prints one directory per sample to the salmon_quant folder.
+
+```{bash, eval=FALSE}
+
+mkdir salmon_quant
+
+for infile in *1.trim.fastq.gz
+do      
+base=$(basename ${infile} _1.trim.fastq.gz)                                                         
+
+echo "salmon quant"$base 
+
+salmon quant -i salmon_idx/transcripts_with_decoy_index -l A -1 ${base}_1.trim.fastq.gz -2 ${base}_2.trim.fastq.gz --validateMappings --gcBias --seqBias -o salmon_quant/$base -p 4
+
+
+done
+
+
+```
+
+
+### 3.1. Differential expression with DESeq2
+
+We use DESeq2 as implemented in BiocManager in R. Thi estimates variance-mean dependence in count data from high-throughput sequencing assays and test for differential expression based on a model using the negative binomial distribution.
+
+Love, M.I., Huber, W. & Anders, S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biol 15, 550 (2014). https://doi.org/10.1186/s13059-014-0550-8
+
+Radivojac, P., Clark , W., Oron , T., Schnoes , A., Wittkop , et al., A large-scale evaluation of computational protein function prediction. Nature Methods 10, 221-227.  
+
+Klopfenstein, D.V., Zhang L, Pedersen,B.S, Ramírez, F., Vesztrocy,A.W et al., GOATOOLS: A Python library for Gene Ontology analyses. Scientific reports, 8 (2018). https://www.nature.com/articles/s41598-018-28948-z
+
+```{r start BiocManager, eval=T}
+if (!requireNamespace("BiocManager", quietly=TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version="3.15")
+# note version 3.11 on VM
+BiocManager::install("rrvgo")
+BiocManager::install("orgdb")
+
+```
+
+2. Load the packages into the working environment.
+
+```{r, eval=FALSE}
+# These packages are imbeded within R bioconductor 
+# but still need to be loaded into R memory
+library("tidyverse")
+library("stringr")
+library("DESeq2")
+library("tximport")
+library("pcaExplorer")
+library("apeglm")
+library("EnhancedVolcano")
+library("dplyr")
+library("rrvgo")
+
+```
+
+#### 3.2 Importing datasets using tximport
+
+Read in a file that relates the transcript ID to the parent gene (preprepared)
+
+```{r, eval=FALSE}
+#setwd("~/RNAseq/D06_Differential_Expression/Salmon_revisited/salmon_quant")
+
+setwd("~/RNAseq/D06_Differential_Expression/Salmon_revisited/salmon_quant")
+tx2gene <- read.table("Transcript_to_gene_V3.txt", header=TRUE)
+```
+
+Read in a file that identifies the samples and their relevant conditions/genotypes for each experiment. We will run the commands to import for each of the two experiments in parallel.
+
+```{r, eval=FALSE}
+Species_samples <- read.table("Samples_Hset.txt", header=TRUE)
+
+FLA_samples <- read.table("Samples_FLA.txt", header=TRUE)
+
+#check that the correct quantification files are detected
+Species_files <- file.path(Species_samples$sample, "quant.sf")
+names(Species_files) <- paste0(Species_samples$sample)
+all(file.exists(Species_files))
+
+FLA_files <- file.path(FLA_samples$sample, "quant.sf")
+names(FLA_files) <- paste0(FLA_samples$sample)
+all(file.exists(FLA_files))
+
+#import quantifications
+txi_species <- tximport(Species_files, type = "salmon", tx2gene = tx2gene)
+txi_fla <- tximport(FLA_files, type = "salmon", tx2gene = tx2gene)
+
+#explore file content e.g.
+names(txi_species)
+head(txi_species$counts)
+
+```
+
+### 3.3 DESeq2 analysis 
+
+```{r, eval=FALSE}
+#Create DEseq object
+dds_species <- DESeqDataSetFromTximport(txi_species,
+                                   colData = Species_samples,
+                                   design = ~ genotype)
+
+#Filter out genes where there are fewer than 10 counts recorded across all samples in the experiment
+keep_species <- rowSums(counts(dds_species)) >= 10
+dds_species <- dds_species[keep_species,]
+
+# This filtering reduces the Species DESeq dataset size from 36,962 elements to 24,659 elements.
+
+```
+
+```{r, eval=FALSE}
+#Create DEseq object
+dds_fla <- DESeqDataSetFromTximport(txi_fla,
+                                   colData = FLA_samples,
+                                   design = ~ genotype)
+
+#Filter out genes where there are fewer than 10 counts recorded across all samples in the experiment
+keep_fla <- rowSums(counts(dds_fla)) >= 10
+dds_fla <- dds_fla[keep_fla,]
+
+# This filtering reduces the FLA DESeq dataset size from 36,962 elements to 22,707 elements. [same starting point as unfiltered = all annotated genes]
+
+```
+
+We can specify which genotype we want the analysis to consider the reference.
+
+```{r, eval=FALSE}
+
+dds_species$genotype <- relevel(dds_species$genotype, ref = "pseudo")
+
+dds_fla$genotype <-relevel(dds_fla$genotype, ref="WT")
+
+````
+
+Run the differential expression analysis for the species comparison:
+
+```{r, eval=FALSE}
+
+#run analysis
+dds_species <- DESeq(dds_species)
+
+#generate a results table, which contains log2 fold changes, p-values and adjusted p-values
+res_species <- results(dds_species)
+
+#view this table in the console
+res_species
+
+#obtain a summary of the experiment
+summary(res_species)
+
+```
+
+number of genes with an adjusted p-value of less than 0.05
+```{r, eval=FALSE}
+sum(res_species$padj < 0.05, na.rm=TRUE)  
+```
+
+### 3.4 Data correction
+
+One of the adjustments that can be made is to try and compensate for inflated reported log2fold changes in genes that have low counts.  
+
+```{r, eval=FALSE}
+#sort the results according to their adjusted p-value
+
+res_speciesOrdered <- res_species[order(res_species$padj),]
+
+
+#write out the subset of genes with a p-value less than 0.05
+res05_species <- results(dds_species, alpha=0.05)
+res05_speciesOrdered <- res05_species[order(res05_species$pvalue),]
+
+write.csv(as.data.frame(res05_speciesOrdered), file="species_results.csv")
+
+# correction routine
+resLFC <- lfcShrink(dds_species, coef="genotype_striatum_vs_pseudo", type="apeglm")
+
+```
+
+### 3.5 Data visualisations
+
+### 3.5.1 MA plot. 
+
+An MA plot is a 2-dimensional scatterplot in which the Y axis represents the fold-change (on a log scale) and the X axis the log of the mean expression counts of the samples. Genes with similar experession values will cluster around Y=0, deviations from zero indicate up-or down-regulation.
+
+```{r, eval=F}
+par(mfrow=c(1,2))
+plotMA(res_species)
+plotMA(resLFC)
+```
+
+### 3.5.2 Volcano plot
+
+[note that the species experiment is very noisy, for more typical examples the visualisation you can explore https://www.bioconductor.org/packages/release/bioc/vignettes/EnhancedVolcano/inst/doc/EnhancedVolcano.html]
+
+```{r volcano plot, eval=F}
+EnhancedVolcano(resLFC, lab=rownames(resLFC), x="log2FoldChange", y='pvalue')
+```
+
+### 3.5.3 PCA and distance matrices 
+
+When you run this R package, an app window opens up.  
+
+1. Click on the green button 'create dds/ddt objects'
+2. move between the tabs to explore the different information
+
+Note that H224_E is very different
+
+```{r pca explorer for species comparison, eval=F}
+pcaExplorer(dds=dds_species)
+```
+
+The most useful areas to focus on are the **Data Overview** and **Samples view** tabs. But also take a look at **Genes view** for heatmaps you will also see in your R studio plot panel.
+
+To close the Shiny app, press ESC
+
+### 3.5.4 Examining the top candidates
+
+We can also look at the counts for a particular gene (here the most differentially expressed). Naturally we would take a look at the top hits first (i.e. those with the lowest p-values.
+
+```{r picking out top candidate,eval=F}
+plotCounts(dds_species, gene=which.min(res_species$padj), intgroup="genotype")
+```
+
+Pulling out all of Chromosome 5 for RUBIA region (refer to resources/Known_colour_and_symmetry-genes.txt for a list of ids, note that the gene name does not have the trailing .T01 suffix).
+
+```{r picking out all Chromosome 5,eval=F}
+Am05 transcripts out to file
+```
+
+Next steps and main plots performed in `FastClines_Amajus_main.Rmd`
