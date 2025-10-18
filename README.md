@@ -90,11 +90,11 @@ Functions: see `Source-my-functions` code chunk in `FastClines_Amajus_main.Rmd` 
 
 ### (vii) MLE Cline fitting
 
-- main analyses run by `FastClines_Amajus_simulations`
+- main analyses run by `FastClines_Amajus_MLEclines.Rmd`
 - Fig 8d. ROS/RUB interaction
 - Fig S3, Fig S4
 
 ### (viii) FastClines simulations
 
-- main analyses run by `FastClines_Amajus_MLEclines.Rmd`
+- main analyses run by `FastClines_Amajus_simulations`
 - creates figures for supplementary Fig S1 and Fig S2
